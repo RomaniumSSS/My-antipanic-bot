@@ -12,6 +12,8 @@ from tortoise import Tortoise
 
 from src.config import config
 from src.database.config import TORTOISE_ORM
+from src.bot.handlers import register_routers
+from src.bot.middlewares.access import AccessMiddleware
 
 # Настройка логов
 logging.basicConfig(
@@ -42,9 +44,12 @@ async def main():
     )
     dp = Dispatcher()
 
-    # TODO: Подключи роутеры handlers
-    # from src.bot.handlers import start, morning, stuck
-    # dp.include_router(start.router)
+    # Глобальные middleware (например, whitelist)
+    dp.message.middleware(AccessMiddleware())
+    dp.callback_query.middleware(AccessMiddleware())
+
+    # Подключение роутеров
+    register_routers(dp)
 
     dp.startup.register(on_startup)
     dp.shutdown.register(on_shutdown)

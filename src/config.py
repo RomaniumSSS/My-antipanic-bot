@@ -15,7 +15,8 @@ class Settings(BaseSettings):
     
     # OpenAI
     OPENAI_KEY: SecretStr
-    OPENAI_MODEL: str = "gpt-4o"
+    # Используем более мощную модель по умолчанию
+    OPENAI_MODEL: str = "gpt-4.1"
     
     # Alpha Testing: Whitelist (empty = open access)
     ALLOWED_USER_IDS: List[int] = []
