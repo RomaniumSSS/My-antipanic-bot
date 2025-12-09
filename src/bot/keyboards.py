@@ -14,9 +14,11 @@ from src.bot.callbacks.data import (
     BlockerCallback,
     RatingCallback,
     StepCallback,
+    MicrohitFeedbackCallback,
     BlockerType,
     ConfirmAction,
     StepAction,
+    MicrohitFeedbackAction,
 )
 
 
@@ -128,6 +130,33 @@ def yes_no_keyboard() -> InlineKeyboardMarkup:
     builder.button(text="✅ Да", callback_data=cb_yes)
     builder.button(text="❌ Нет", callback_data=cb_no)
     builder.adjust(2)
+    return builder.as_markup()
+
+
+def microhit_feedback_keyboard(
+    step_id: int | None, blocker: BlockerType
+) -> InlineKeyboardMarkup:
+    """Кнопки реакции на микро-удар."""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="✅ Сделаю",
+        callback_data=MicrohitFeedbackCallback(
+            action=MicrohitFeedbackAction.do, step_id=step_id, blocker=blocker
+        ),
+    )
+    builder.button(
+        text="🆘 Нужна подсказка",
+        callback_data=MicrohitFeedbackCallback(
+            action=MicrohitFeedbackAction.more, step_id=step_id, blocker=blocker
+        ),
+    )
+    builder.button(
+        text="✏️ Другое",
+        callback_data=MicrohitFeedbackCallback(
+            action=MicrohitFeedbackAction.other, step_id=step_id, blocker=blocker
+        ),
+    )
+    builder.adjust(1, 2)
     return builder.as_markup()
 
 

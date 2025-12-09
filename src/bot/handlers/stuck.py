@@ -14,9 +14,14 @@ from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.context import FSMContext
 
-from src.bot.callbacks.data import BlockerCallback, BlockerType
+from src.bot.callbacks.data import (
+    BlockerCallback,
+    BlockerType,
+    MicrohitFeedbackCallback,
+    MicrohitFeedbackAction,
+)
 from src.bot.states import StuckStates
-from src.bot.keyboards import steps_list_keyboard
+from src.bot.keyboards import steps_list_keyboard, microhit_feedback_keyboard
 from src.database.models import User, DailyLog, Step
 from src.services.ai import ai_service
 from datetime import date
@@ -87,6 +92,7 @@ async def generate_and_show_microhit(
     data = await state.get_data()
     step_title = data.get("stuck_step_title", "задача")
     blocker_type = data.get("blocker_type", "unclear")
+    step_id = data.get("stuck_step_id")
 
     # Отправляем индикатор загрузки
     if hasattr(message_or_callback_msg, "edit_text"):
@@ -146,9 +152,72 @@ async def generate_and_show_microhit(
         f"💡 Попробуй это прямо сейчас — всего 2-5 минут!"
     )
 
+    feedback_markup = microhit_feedback_keyboard(step_id, blocker_key)
+
     if hasattr(wait_msg, "edit_text"):
-        await wait_msg.edit_text(result_text, reply_markup=reply_markup)
+        await wait_msg.edit_text(result_text, reply_markup=feedback_markup)
     else:
-        await message_or_callback_msg.answer(result_text, reply_markup=reply_markup)
+        await message_or_callback_msg.answer(result_text, reply_markup=feedback_markup)
+
+    # Если есть незавершённые шаги — шлём клавиатуру для отметок отдельно
+    if reply_markup:
+        await message_or_callback_msg.answer(
+            "Отмечай выполнение или задай ещё вопрос по шагам:",
+            reply_markup=reply_markup,
+        )
 
     logger.info(f"Microhit generated for step '{step_title}' blocker='{blocker_type}'")
+
+
+@router.callback_query(MicrohitFeedbackCallback.filter())
+async def microhit_feedback(
+    callback: CallbackQuery, callback_data: MicrohitFeedbackCallback
+) -> None:
+    """Обработка реакции на микро-удар."""
+    await callback.answer()
+
+    action = callback_data.action
+    step_id = callback_data.step_id
+    blocker = callback_data.blocker
+
+    if action == MicrohitFeedbackAction.do:
+        await callback.message.edit_text(
+            "🔥 Отлично! Действуй. Напиши, если нужна будет ещё подсказка."
+        )
+        return
+
+    if action == MicrohitFeedbackAction.other:
+        await callback.message.edit_text(
+            "Ок, напиши, что именно хочешь уточнить — попробую помочь."
+        )
+        return
+
+    if action == MicrohitFeedbackAction.more:
+        # Генерируем ещё один микро-удар для того же шага
+        if not callback.from_user:
+            return
+        user = await User.get_or_none(telegram_id=callback.from_user.id)
+        if not user:
+            await callback.message.edit_text("Не нашёл профиль. Напиши /start.")
+            return
+
+        # Пытаемся получить шаг по id, иначе fallback
+        step_title = "задача"
+        if step_id:
+            step = await Step.get_or_none(id=step_id)
+            if step:
+                step_title = step.title
+
+        wait_msg = await callback.message.edit_text(
+            "🤔 Думаю над новым микро-ударом..."
+        )
+        microhit = await ai_service.get_microhit(
+            step_title=step_title, blocker_type=blocker.value, details=""
+        )
+
+        feedback_markup = microhit_feedback_keyboard(step_id, blocker)
+        await wait_msg.edit_text(
+            f"🆘 *Ещё идея:*\n\n{microhit}\n\n"
+            "💡 Попробуй и отметь статус кнопками ниже.",
+            reply_markup=feedback_markup,
+        )

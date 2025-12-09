@@ -49,6 +49,14 @@ class StepAction(str, Enum):
     stuck = "stuck"  # Застрял
 
 
+class MicrohitFeedbackAction(str, Enum):
+    """Реакция на микро-удар."""
+
+    do = "do"  # Сделаю
+    more = "more"  # Нужна ещё подсказка
+    other = "other"  # Другое
+
+
 # === Callback Data Classes ===
 
 
@@ -99,6 +107,19 @@ class StepCallback(CallbackData, prefix="step"):
 
     action: StepAction
     step_id: int
+
+
+class MicrohitFeedbackCallback(CallbackData, prefix="microhit"):
+    """
+    Обратная связь после микро-удара.
+
+    Использование:
+        MicrohitFeedbackCallback(action=MicrohitFeedbackAction.do, step_id=1, blocker="fear")
+    """
+
+    action: MicrohitFeedbackAction
+    step_id: int | None
+    blocker: BlockerType
 
 
 class RatingCallback(CallbackData, prefix="rating"):
