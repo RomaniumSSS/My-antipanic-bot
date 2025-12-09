@@ -106,9 +106,21 @@ async def process_mood(message: Message, state: FSMContext) -> None:
 
     mood = message.text or "нормально"
     data = await state.get_data()
-    energy = data["energy"]
+    energy = data.get("energy")
 
-    user = await User.get(telegram_id=message.from_user.id)
+    if energy is None:
+        await state.set_state(MorningStates.waiting_for_energy)
+        await message.answer(
+            "Не вижу выбранную энергию. Выбери уровень снова:",
+            reply_markup=energy_keyboard(),
+        )
+        return
+
+    user = await User.get_or_none(telegram_id=message.from_user.id)
+    if not user:
+        await state.clear()
+        await message.answer("Не нашёл профиль. Напиши /start чтобы создать цель.")
+        return
     active_goal = await Goal.filter(user=user, status="active").first()
 
     if not active_goal:

@@ -6,7 +6,7 @@
 """
 
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 
 from src.bot.callbacks.data import (
     EnergyCallback,
@@ -129,3 +129,14 @@ def yes_no_keyboard() -> InlineKeyboardMarkup:
     builder.button(text="❌ Нет", callback_data=cb_no)
     builder.adjust(2)
     return builder.as_markup()
+
+
+def main_menu_keyboard() -> ReplyKeyboardMarkup:
+    """Главное меню с ключевыми командами."""
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="/morning"), KeyboardButton(text="/status")],
+            [KeyboardButton(text="/evening"), KeyboardButton(text="/weekly")],
+        ],
+        resize_keyboard=True,
+    )

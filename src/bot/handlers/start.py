@@ -7,6 +7,7 @@ from aiogram.fsm.context import FSMContext
 
 from src.database.models import User, Goal
 from src.bot.states import OnboardingStates
+from src.bot.keyboards import main_menu_keyboard
 
 router = Router()
 
@@ -58,7 +59,8 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
             f"/morning — начать день\n"
             f"/evening — подвести итоги\n"
             f"/weekly — статистика за неделю\n"
-            f"/status — текущий прогресс"
+            f"/status — текущий прогресс",
+            reply_markup=main_menu_keyboard(),
         )
     else:
         # Нет активной цели — предлагаем создать

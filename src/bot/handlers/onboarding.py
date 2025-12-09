@@ -17,7 +17,7 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 
 from src.bot.states import OnboardingStates
-from src.bot.keyboards import confirm_keyboard
+from src.bot.keyboards import confirm_keyboard, main_menu_keyboard
 from src.bot.callbacks.data import ConfirmCallback, ConfirmAction
 from src.database.models import User, Goal, Stage
 from src.services.ai import ai_service
@@ -202,7 +202,8 @@ async def confirm_stages(callback: CallbackQuery, state: FSMContext) -> None:
         "Я буду напоминать тебе утром (09:00) и вечером (21:00).\n\n"
         "Команды:\n"
         "/morning — начать планирование дня\n"
-        "/status — посмотреть прогресс"
+        "/status — посмотреть прогресс",
+        reply_markup=main_menu_keyboard(),
     )
 
     logger.info(f"Goal created for user {user.telegram_id}: {goal_text}")
