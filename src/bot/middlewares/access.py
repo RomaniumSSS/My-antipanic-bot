@@ -16,7 +16,7 @@ from src.config import config
 class AccessMiddleware(BaseMiddleware):
     """
     Middleware для проверки доступа по whitelist.
-    
+
     Использование:
         dp.message.middleware(AccessMiddleware())
         dp.callback_query.middleware(AccessMiddleware())
@@ -53,4 +53,3 @@ class AccessMiddleware(BaseMiddleware):
         if isinstance(event, CallbackQuery) and event.from_user:
             return event.from_user.id
         return None
-

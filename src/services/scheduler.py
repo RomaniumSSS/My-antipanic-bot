@@ -33,9 +33,7 @@ def set_bot(bot: Bot) -> None:
 def get_bot() -> Bot:
     """Получить инстанс бота."""
     if _bot is None:
-        raise RuntimeError(
-            "Bot not initialized in scheduler. Call set_bot() first."
-        )
+        raise RuntimeError("Bot not initialized in scheduler. Call set_bot() first.")
     return _bot
 
 
@@ -200,14 +198,22 @@ async def remove_user_reminders(user_id: int) -> None:
 
 # === Lifecycle ===
 
+_scheduler_task = None
+
 
 async def start() -> None:
     """Запустить планировщик (вызывать в on_startup)."""
-    await scheduler.start_in_background()
+    global _scheduler_task
+    # APScheduler 4.x требует __aenter__ перед использованием
+    await scheduler.__aenter__()
+    _scheduler_task = True
     logger.info("Scheduler started")
 
 
 async def stop() -> None:
     """Остановить планировщик (вызывать в on_shutdown)."""
-    await scheduler.stop()
+    global _scheduler_task
+    if _scheduler_task:
+        await scheduler.__aexit__(None, None, None)
+        _scheduler_task = None
     logger.info("Scheduler stopped")

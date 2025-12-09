@@ -14,22 +14,23 @@ from tortoise import fields, models
 
 class User(models.Model):
     """Пользователь бота."""
+
     id = fields.IntField(pk=True)
     telegram_id = fields.BigIntField(unique=True, index=True)
     username = fields.CharField(max_length=255, null=True)
     first_name = fields.CharField(max_length=255, null=True)
-    
+
     # Статистика
     xp = fields.IntField(default=0)
     level = fields.IntField(default=1)
     streak_days = fields.IntField(default=0)
     streak_last_date = fields.DateField(null=True)
-    
+
     # Настройки напоминаний (время в формате HH:MM)
     reminder_morning = fields.CharField(max_length=5, default="09:00")
     reminder_evening = fields.CharField(max_length=5, default="21:00")
     timezone_offset = fields.IntField(default=3)  # UTC+3 (Moscow)
-    
+
     created_at = fields.DatetimeField(auto_now_add=True)
 
     goals: fields.ReverseRelation["Goal"]
@@ -41,19 +42,22 @@ class User(models.Model):
 
 class Goal(models.Model):
     """Цель пользователя."""
+
     id = fields.IntField(pk=True)
-    user = fields.ForeignKeyField("models.User", related_name="goals", on_delete=fields.CASCADE)
-    
+    user = fields.ForeignKeyField(
+        "models.User", related_name="goals", on_delete=fields.CASCADE
+    )
+
     title = fields.CharField(max_length=255)
     description = fields.TextField(null=True)
-    
+
     # Даты
     start_date = fields.DateField(auto_now_add=True)
     deadline = fields.DateField()
-    
+
     # Статус: active, completed, paused, abandoned
     status = fields.CharField(max_length=20, default="active")
-    
+
     created_at = fields.DatetimeField(auto_now_add=True)
 
     stages: fields.ReverseRelation["Stage"]
@@ -64,19 +68,22 @@ class Goal(models.Model):
 
 class Stage(models.Model):
     """Этап цели (2-4 этапа на цель)."""
+
     id = fields.IntField(pk=True)
-    goal = fields.ForeignKeyField("models.Goal", related_name="stages", on_delete=fields.CASCADE)
-    
+    goal = fields.ForeignKeyField(
+        "models.Goal", related_name="stages", on_delete=fields.CASCADE
+    )
+
     title = fields.CharField(max_length=255)
     order = fields.IntField(default=0)  # Порядок этапа (1, 2, 3...)
-    
+
     # Даты этапа
     start_date = fields.DateField()
     end_date = fields.DateField()
-    
+
     # Прогресс (0-100)
     progress = fields.IntField(default=0)
-    
+
     # Статус: pending, active, completed
     status = fields.CharField(max_length=20, default="pending")
 
@@ -91,23 +98,26 @@ class Step(models.Model):
     Конкретный шаг/задача.
     Привязан к этапу и имеет градацию сложности.
     """
+
     id = fields.IntField(pk=True)
-    stage = fields.ForeignKeyField("models.Stage", related_name="steps", on_delete=fields.CASCADE)
-    
+    stage = fields.ForeignKeyField(
+        "models.Stage", related_name="steps", on_delete=fields.CASCADE
+    )
+
     title = fields.CharField(max_length=500)
-    
+
     # Сложность: easy (5-10 мин), medium (15-30 мин), hard (45-90 мин)
     difficulty = fields.CharField(max_length=10, default="medium")
-    
+
     # Оценка времени в минутах
     estimated_minutes = fields.IntField(default=15)
-    
+
     # XP за выполнение
     xp_reward = fields.IntField(default=20)
-    
+
     # Запланированная дата (может быть null = не запланировано)
     scheduled_date = fields.DateField(null=True)
-    
+
     # Статус: pending, completed, skipped
     status = fields.CharField(max_length=20, default="pending")
     completed_at = fields.DatetimeField(null=True)
@@ -121,30 +131,33 @@ class DailyLog(models.Model):
     Дневник дня.
     Хранит состояние пользователя и результаты дня.
     """
+
     id = fields.IntField(pk=True)
-    user = fields.ForeignKeyField("models.User", related_name="daily_logs", on_delete=fields.CASCADE)
-    
+    user = fields.ForeignKeyField(
+        "models.User", related_name="daily_logs", on_delete=fields.CASCADE
+    )
+
     date = fields.DateField()
-    
+
     # Утренний чек-ин
     energy_level = fields.IntField(null=True)  # 1-10
     mood_text = fields.CharField(max_length=100, null=True)  # "тревожно", "бодро"
-    
+
     # Назначенные шаги (JSON: список ID шагов)
     assigned_step_ids = fields.JSONField(default=[])
-    
+
     # Выполненные шаги (JSON: список ID шагов)
     completed_step_ids = fields.JSONField(default=[])
-    
+
     # Причины пропуска (JSON: {"step_id": "причина"})
     skip_reasons = fields.JSONField(default={})
-    
+
     # Вечерняя оценка дня (1-5 или emoji)
     day_rating = fields.CharField(max_length=20, null=True)
-    
+
     # XP заработанный за день
     xp_earned = fields.IntField(default=0)
-    
+
     created_at = fields.DatetimeField(auto_now_add=True)
 
     class Meta:
