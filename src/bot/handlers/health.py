@@ -11,4 +11,3 @@ router = Router()
 async def cmd_ping(message: Message) -> None:
     """Проверка доступности бота."""
     await message.answer("pong")
-

@@ -12,12 +12,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     # Telegram
     BOT_TOKEN: SecretStr
-    
+
     # OpenAI
     OPENAI_KEY: SecretStr
     # Используем более мощную модель по умолчанию
     OPENAI_MODEL: str = "gpt-4.1"
-    
+
     # Alpha Testing: Whitelist (empty = open access)
     ALLOWED_USER_IDS: List[int] = []
 
@@ -32,6 +32,7 @@ class Settings(BaseSettings):
             v = v.strip()
             if v.startswith("[") and v.endswith("]"):
                 import json
+
                 try:
                     return json.loads(v)
                 except json.JSONDecodeError:
