@@ -33,6 +33,7 @@ class StuckStates(StatesGroup):
     waiting_for_blocker = State()  # Выбор что мешает
     waiting_for_details = State()  # Детали (если выбрал "не знаю с чего")
     showing_microhit = State()  # Показ микро-удара
+    waiting_for_feedback_details = State()  # Детали после кнопки "Другое"
 
 
 class EveningStates(StatesGroup):

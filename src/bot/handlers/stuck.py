@@ -171,7 +171,7 @@ async def generate_and_show_microhit(
 
 @router.callback_query(MicrohitFeedbackCallback.filter())
 async def microhit_feedback(
-    callback: CallbackQuery, callback_data: MicrohitFeedbackCallback
+    callback: CallbackQuery, callback_data: MicrohitFeedbackCallback, state: FSMContext
 ) -> None:
     """Обработка реакции на микро-удар."""
     await callback.answer()
@@ -187,6 +187,20 @@ async def microhit_feedback(
         return
 
     if action == MicrohitFeedbackAction.other:
+        # Сохраняем контекст и ждём уточнения текстом
+        step_title = "задача"
+        if step_id:
+            step = await Step.get_or_none(id=step_id)
+            if step:
+                step_title = step.title
+
+        await state.update_data(
+            feedback_step_id=step_id,
+            feedback_step_title=step_title,
+            feedback_blocker=blocker.value,
+        )
+        await state.set_state(StuckStates.waiting_for_feedback_details)
+
         await callback.message.edit_text(
             "Ок, напиши, что именно хочешь уточнить — попробую помочь."
         )
@@ -221,3 +235,77 @@ async def microhit_feedback(
             "💡 Попробуй и отметь статус кнопками ниже.",
             reply_markup=feedback_markup,
         )
+
+
+@router.message(StuckStates.waiting_for_feedback_details)
+async def microhit_feedback_details(message: Message, state: FSMContext) -> None:
+    """Детали после кнопки 'Другое' → новый микро-удар."""
+    await _process_microhit_feedback_details(message, state)
+
+
+@router.message()
+async def microhit_feedback_details_fallback(
+    message: Message, state: FSMContext
+) -> None:
+    """
+    Fallback: если по какой-то причине состояние потерялось,
+    но в данных FSM остался контекст feedback_* — продолжаем диалог,
+    чтобы пользователь не зависал без ответа.
+    """
+    data = await state.get_data()
+    has_feedback_context = data.get("feedback_blocker")
+    current_state = await state.get_state()
+
+    if not has_feedback_context:
+        return
+
+    if (
+        current_state
+        and current_state != StuckStates.waiting_for_feedback_details.state
+    ):
+        return
+
+    # Восстанавливаем ожидаемое состояние и продолжаем обработку
+    await state.set_state(StuckStates.waiting_for_feedback_details)
+    await _process_microhit_feedback_details(message, state)
+
+
+async def _process_microhit_feedback_details(
+    message: Message, state: FSMContext
+) -> None:
+    """Общая логика обработки уточняющих деталей для микро-удара."""
+    details = message.text or ""
+    data = await state.get_data()
+
+    step_id = data.get("feedback_step_id")
+    step_title = data.get("feedback_step_title", "задача")
+    blocker_value = data.get("feedback_blocker", BlockerType.unclear.value)
+
+    if step_id and step_title == "задача":
+        step = await Step.get_or_none(id=step_id)
+        if step:
+            step_title = step.title
+
+    try:
+        blocker = BlockerType(blocker_value)
+    except Exception as err:
+        logger.exception("Failed to restore blocker from state: %s", err)
+        await state.clear()
+        await message.answer(
+            "Не разобрался, какой блокер обсуждаем. Нажми /morning или /status, "
+            "если нужна помощь с шагами."
+        )
+        return
+
+    wait_msg = await message.answer("🤔 Думаю над микро-ударом...")
+    microhit = await ai_service.get_microhit(
+        step_title=step_title, blocker_type=blocker.value, details=details
+    )
+
+    feedback_markup = microhit_feedback_keyboard(step_id, blocker)
+    await state.clear()
+
+    await wait_msg.edit_text(
+        f"🆘 *Идея:*\n\n{microhit}\n\n" "💡 Попробуй и отметь статус кнопками ниже.",
+        reply_markup=feedback_markup,
+    )
