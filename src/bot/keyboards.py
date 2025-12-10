@@ -138,22 +138,23 @@ def microhit_feedback_keyboard(
 ) -> InlineKeyboardMarkup:
     """Кнопки реакции на микро-удар."""
     builder = InlineKeyboardBuilder()
+    sid = step_id or 0  # 0 = без привязки к шагу
     builder.button(
         text="✅ Сделаю",
         callback_data=MicrohitFeedbackCallback(
-            action=MicrohitFeedbackAction.do, step_id=step_id, blocker=blocker
+            action=MicrohitFeedbackAction.do, step_id=sid, blocker=blocker
         ),
     )
     builder.button(
         text="🆘 Нужна подсказка",
         callback_data=MicrohitFeedbackCallback(
-            action=MicrohitFeedbackAction.more, step_id=step_id, blocker=blocker
+            action=MicrohitFeedbackAction.more, step_id=sid, blocker=blocker
         ),
     )
     builder.button(
         text="✏️ Другое",
         callback_data=MicrohitFeedbackCallback(
-            action=MicrohitFeedbackAction.other, step_id=step_id, blocker=blocker
+            action=MicrohitFeedbackAction.other, step_id=sid, blocker=blocker
         ),
     )
     builder.adjust(1, 2)

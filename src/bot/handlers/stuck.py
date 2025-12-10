@@ -13,6 +13,7 @@ import logging
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.context import FSMContext
+from aiogram.dispatcher.event.bases import SkipHandler
 
 from src.bot.callbacks.data import (
     BlockerCallback,
@@ -71,8 +72,8 @@ async def blocker_other(
     blocker_type = callback_data.type
     await state.update_data(blocker_type=blocker_type.value)
 
-    # Генерируем микро-удар
-    await generate_and_show_microhit(callback.message, state, details="")
+    # Генерируем микро-удар (можно редактировать, т.к. это сообщение бота)
+    await generate_and_show_microhit(callback.message, state, details="", can_edit=True)
 
 
 @router.message(StuckStates.waiting_for_details)
@@ -86,7 +87,7 @@ async def process_details(message: Message, state: FSMContext) -> None:
 
 
 async def generate_and_show_microhit(
-    message_or_callback_msg, state: FSMContext, details: str
+    message_or_callback_msg, state: FSMContext, details: str, *, can_edit: bool = False
 ) -> None:
     """Генерация и показ микро-удара."""
     data = await state.get_data()
@@ -95,7 +96,8 @@ async def generate_and_show_microhit(
     step_id = data.get("stuck_step_id")
 
     # Отправляем индикатор загрузки
-    if hasattr(message_or_callback_msg, "edit_text"):
+    # can_edit=True только если это сообщение бота (например, из callback)
+    if can_edit:
         wait_msg = await message_or_callback_msg.edit_text(
             "🤔 Думаю над микро-ударом..."
         )
@@ -177,7 +179,7 @@ async def microhit_feedback(
     await callback.answer()
 
     action = callback_data.action
-    step_id = callback_data.step_id
+    step_id = callback_data.step_id or None  # 0 → None
     blocker = callback_data.blocker
 
     if action == MicrohitFeedbackAction.do:
@@ -257,13 +259,13 @@ async def microhit_feedback_details_fallback(
     current_state = await state.get_state()
 
     if not has_feedback_context:
-        return
+        raise SkipHandler()  # Пропускаем к следующим хендлерам
 
     if (
         current_state
         and current_state != StuckStates.waiting_for_feedback_details.state
     ):
-        return
+        raise SkipHandler()  # Пропускаем к следующим хендлерам
 
     # Восстанавливаем ожидаемое состояние и продолжаем обработку
     await state.set_state(StuckStates.waiting_for_feedback_details)

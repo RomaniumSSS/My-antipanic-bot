@@ -114,11 +114,13 @@ class MicrohitFeedbackCallback(CallbackData, prefix="microhit"):
     Обратная связь после микро-удара.
 
     Использование:
-        MicrohitFeedbackCallback(action=MicrohitFeedbackAction.do, step_id=1, blocker="fear")
+        MicrohitFeedbackCallback(action=MicrohitFeedbackAction.do, step_id=1, blocker=BlockerType.fear)
+
+    step_id=0 означает "без привязки к шагу".
     """
 
     action: MicrohitFeedbackAction
-    step_id: int | None
+    step_id: int  # 0 = без привязки к шагу
     blocker: BlockerType
 
 
