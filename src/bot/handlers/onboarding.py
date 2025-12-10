@@ -159,7 +159,11 @@ async def confirm_stages(callback: CallbackQuery, state: FSMContext) -> None:
     if not callback.from_user:
         return
 
-    user = await User.get(telegram_id=callback.from_user.id)
+    user = await User.get_or_none(telegram_id=callback.from_user.id)
+    if not user:
+        await state.clear()
+        await callback.message.edit_text("Пользователь не найден. Напиши /start")
+        return
 
     # Создаём цель
     goal = await Goal.create(

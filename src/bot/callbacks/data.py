@@ -57,6 +57,13 @@ class MicrohitFeedbackAction(str, Enum):
     other = "other"  # Другое
 
 
+class QuickStepAction(str, Enum):
+    """Действия для кнопки быстрого микрошага."""
+
+    quick = "quick"  # Шаг на 2 минуты
+    keep = "keep"  # Оставить как есть
+
+
 # === Callback Data Classes ===
 
 
@@ -134,3 +141,15 @@ class RatingCallback(CallbackData, prefix="rating"):
     """
 
     value: int
+
+
+class QuickStepCallback(CallbackData, prefix="quickstep"):
+    """
+    Действие для быстрого микрошага на 2 минуты.
+
+    Использование:
+        QuickStepCallback(action=QuickStepAction.quick)
+        QuickStepCallback.filter(F.action == QuickStepAction.quick)
+    """
+
+    action: QuickStepAction

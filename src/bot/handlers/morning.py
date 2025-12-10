@@ -18,8 +18,8 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 
 from src.bot.states import MorningStates
-from src.bot.keyboards import energy_keyboard, steps_list_keyboard
-from src.bot.callbacks.data import EnergyCallback
+from src.bot.keyboards import energy_keyboard, steps_list_keyboard, low_energy_keyboard
+from src.bot.callbacks.data import EnergyCallback, QuickStepCallback, QuickStepAction
 from src.database.models import User, Goal, Stage, Step, DailyLog
 from src.services.ai import ai_service
 
@@ -199,7 +199,6 @@ async def process_mood(message: Message, state: FSMContext) -> None:
         await daily_log.save()
 
     await wait_msg.delete()
-    await state.clear()
 
     # Формируем текст шагов
     steps_text = ""
@@ -209,16 +208,143 @@ async def process_mood(message: Message, state: FSMContext) -> None:
         )
         steps_text += f"{i}. {step.title} {diff_emoji} ~{step.estimated_minutes}мин\n"
 
-    await message.answer(
-        f"✨ *План на день готов!*\n\n"
-        f"📍 Этап: _{current_stage.title}_\n"
-        f"⚡ Энергия: {energy}/10\n\n"
-        f"*Шаги:*\n{steps_text}\n"
-        "Отмечай выполнение кнопками ниже:",
-        reply_markup=steps_list_keyboard(step_ids),
-    )
+    # Если энергия низкая (<=3), предлагаем микрошаг
+    if energy <= 3:
+        await state.update_data(
+            stage_title=current_stage.title,
+            energy=energy,
+            mood=mood,
+            step_ids=step_ids,
+        )
+        await state.set_state(MorningStates.waiting_for_quick_step)
+
+        await message.answer(
+            f"📍 Этап: _{current_stage.title}_\n"
+            f"⚡ Энергия: {energy}/10\n\n"
+            f"Вижу, что энергии мало. Окей, давай не геройствовать.\n\n"
+            f"*Предлагаю такие шаги:*\n{steps_text}\n\n"
+            "Хочешь вместо этого один микро-шаг максимум на 2 минуты?",
+            reply_markup=low_energy_keyboard(),
+        )
+    else:
+        await state.clear()
+        await message.answer(
+            f"✨ *План на день готов!*\n\n"
+            f"📍 Этап: _{current_stage.title}_\n"
+            f"⚡ Энергия: {energy}/10\n\n"
+            f"*Шаги:*\n{steps_text}\n"
+            "Отмечай выполнение кнопками ниже:",
+            reply_markup=steps_list_keyboard(step_ids),
+        )
 
     logger.info(
         f"Morning check-in for user {user.telegram_id}: "
         f"energy={energy}, steps={len(created_steps)}"
+    )
+
+
+@router.callback_query(MorningStates.waiting_for_quick_step, QuickStepCallback.filter())
+async def process_quick_step_choice(
+    callback: CallbackQuery, callback_data: QuickStepCallback, state: FSMContext
+) -> None:
+    """Обработка выбора: микрошаг или обычные шаги."""
+    await callback.answer()
+
+    data = await state.get_data()
+    step_ids = data.get("step_ids", [])
+
+    if callback_data.action == QuickStepAction.keep:
+        # Оставить как есть — показываем обычные шаги
+        await state.clear()
+        await callback.message.edit_text(
+            f"{callback.message.text}\n\n"
+            "Хорошо, оставляю план как есть. Отмечай выполнение кнопками ниже:",
+            reply_markup=steps_list_keyboard(step_ids),
+        )
+        return
+
+    # Генерируем микрошаг
+    stage_title = data.get("stage_title", "")
+    energy = data.get("energy", 1)
+    mood = data.get("mood", "")
+
+    if not callback.from_user:
+        return
+
+    user = await User.get_or_none(telegram_id=callback.from_user.id)
+    if not user:
+        await state.clear()
+        await callback.message.edit_text("Не нашёл профиль.")
+        return
+
+    wait_msg = await callback.message.edit_text(
+        f"{callback.message.text}\n\n⏳ Формулирую микрошаг..."
+    )
+
+    # Генерируем микрошаг через AI
+    micro_step_text = await ai_service.generate_micro_step(
+        stage_title=stage_title, energy=energy, mood=mood
+    )
+
+    # Создаём микрошаг в БД
+    active_goal = await Goal.filter(user=user, status="active").first()
+    if not active_goal:
+        await state.clear()
+        await wait_msg.edit_text("Цель не найдена.")
+        return
+
+    current_stage = await Stage.filter(goal=active_goal, status="active").first()
+    if not current_stage:
+        await state.clear()
+        await wait_msg.edit_text("Этап не найден.")
+        return
+
+    today = date.today()
+    micro_step = await Step.create(
+        stage=current_stage,
+        title=micro_step_text,
+        difficulty="easy",
+        estimated_minutes=2,
+        xp_reward=5,
+        scheduled_date=today,
+        status="pending",
+    )
+
+    # Обновляем DailyLog: добавляем микрошаг к списку (сохраняя оригинальные)
+    daily_log = await DailyLog.get_or_none(user=user, date=today)
+    original_step_ids = []
+    if daily_log:
+        original_step_ids = daily_log.assigned_step_ids or []
+        # Добавляем микрошаг к существующим шагам, а не заменяем
+        daily_log.assigned_step_ids = original_step_ids + [micro_step.id]
+        await daily_log.save()
+
+    await state.clear()
+
+    # Проверяем, были ли уже выполнены оригинальные шаги
+    completed_original = []
+    if original_step_ids:
+        original_steps = await Step.filter(id__in=original_step_ids, status="completed")
+        completed_original = list(original_steps)
+
+    # Формируем сообщение с учётом выполненных оригинальных шагов
+    message_text = (
+        f"⚡ *Супер-микрошаг на 2 минуты:*\n\n"
+        f"👉 {micro_step_text}\n\n"
+        "Потратишь 1–2 минуты, но мозг вспомнит, что проект существует 😉\n\n"
+    )
+
+    if completed_original:
+        completed_text = "\n".join(f"✅ {s.title}" for s in completed_original)
+        message_text += f"*Уже сделано сегодня:*\n{completed_text}\n\n"
+
+    message_text += "Отметь микрошаг, когда сделаешь:"
+
+    await wait_msg.edit_text(
+        message_text, reply_markup=steps_list_keyboard([micro_step.id])
+    )
+
+    logger.info(
+        f"Micro-step generated for user {user.telegram_id}: "
+        f"energy={energy}, step='{micro_step_text[:50]}...'"
     )

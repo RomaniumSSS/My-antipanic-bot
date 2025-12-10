@@ -87,6 +87,18 @@ MICROHIT_PROMPT = """Пользователь застрял на шаге. По
 
 Ответь текстом без форматирования."""
 
+MICRO_STEP_PROMPT = """Пользователь сообщил о низкой энергии ({energy}/10) и состоянии: "{mood}".
+Текущий этап: {stage_title}
+
+Предложи ОДНО супер-микро-действие максимум на 2 минуты, которое:
+- Не требует больших усилий
+- Психологически снижает порог входа
+- Создаёт ощущение движения к цели
+- Не вызывает дополнительного сопротивления
+
+Формат ответа — короткое описание действия (1-2 предложения), дружелюбный тон.
+Без форматирования, без эмодзи."""
+
 
 class AIService:
     def __init__(self):
@@ -152,9 +164,9 @@ class AIService:
             # Пытаемся извлечь JSON из ответа
             response = response.strip()
             if response.startswith("```"):
-                response = response.split("```")[1]
+                response = response.split("```")[1].strip()
                 if response.startswith("json"):
-                    response = response[4:]
+                    response = response[4:].strip()
             return json.loads(response)
         except json.JSONDecodeError:
             logger.error(f"Failed to parse decompose response: {response}")
@@ -184,9 +196,9 @@ class AIService:
         try:
             response = response.strip()
             if response.startswith("```"):
-                response = response.split("```")[1]
+                response = response.split("```")[1].strip()
                 if response.startswith("json"):
-                    response = response[4:]
+                    response = response[4:].strip()
             return json.loads(response)
         except json.JSONDecodeError:
             logger.error(f"Failed to parse steps response: {response}")
@@ -223,6 +235,32 @@ class AIService:
             {"role": "user", "content": prompt},
         ]
         response = await self.chat(messages, temperature=0.8, max_tokens=200)
+        return response
+
+    async def generate_micro_step(
+        self, stage_title: str, energy: int, mood: str
+    ) -> str:
+        """
+        Сгенерировать супер-микро-шаг на 2 минуты для случаев низкой энергии.
+
+        Args:
+            stage_title: Название текущего этапа
+            energy: Уровень энергии (1-10)
+            mood: Описание состояния пользователя
+
+        Returns:
+            Текст микро-действия
+        """
+        prompt = MICRO_STEP_PROMPT.format(
+            stage_title=stage_title,
+            energy=energy,
+            mood=mood or "не указано",
+        )
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ]
+        response = await self.chat(messages, temperature=0.8, max_tokens=150)
         return response
 
 

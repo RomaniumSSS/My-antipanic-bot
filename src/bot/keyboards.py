@@ -15,10 +15,12 @@ from src.bot.callbacks.data import (
     RatingCallback,
     StepCallback,
     MicrohitFeedbackCallback,
+    QuickStepCallback,
     BlockerType,
     ConfirmAction,
     StepAction,
     MicrohitFeedbackAction,
+    QuickStepAction,
 )
 
 
@@ -158,6 +160,21 @@ def microhit_feedback_keyboard(
         ),
     )
     builder.adjust(1, 2)
+    return builder.as_markup()
+
+
+def low_energy_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура для пользователей с низкой энергией."""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="⚡ Шаг на 2 минуты",
+        callback_data=QuickStepCallback(action=QuickStepAction.quick),
+    )
+    builder.button(
+        text="Оставить как есть",
+        callback_data=QuickStepCallback(action=QuickStepAction.keep),
+    )
+    builder.adjust(1, 1)
     return builder.as_markup()
 
 

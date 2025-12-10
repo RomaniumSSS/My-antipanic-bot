@@ -123,7 +123,12 @@ async def process_rating(
     if not callback.from_user:
         return
 
-    user = await User.get(telegram_id=callback.from_user.id)
+    user = await User.get_or_none(telegram_id=callback.from_user.id)
+    if not user:
+        await state.clear()
+        await callback.message.edit_text("Пользователь не найден.")
+        return
+
     today = date.today()
     daily_log = await DailyLog.get_or_none(user=user, date=today)
 

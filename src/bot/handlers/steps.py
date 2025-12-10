@@ -25,7 +25,9 @@ router = Router()
 
 
 @router.callback_query(StepCallback.filter(F.action == StepAction.done))
-async def step_done(callback: CallbackQuery, callback_data: StepCallback) -> None:
+async def step_done(
+    callback: CallbackQuery, callback_data: StepCallback, state: FSMContext
+) -> None:
     """Отметка шага как выполненного."""
     await callback.answer("✅ Отлично!")
 
@@ -45,7 +47,10 @@ async def step_done(callback: CallbackQuery, callback_data: StepCallback) -> Non
     if not callback.from_user:
         return
 
-    user = await User.get(telegram_id=callback.from_user.id)
+    user = await User.get_or_none(telegram_id=callback.from_user.id)
+    if not user:
+        await callback.message.edit_text("Пользователь не найден.")
+        return
     today = date.today()
     daily_log = await DailyLog.get_or_none(user=user, date=today)
 
@@ -61,6 +66,10 @@ async def step_done(callback: CallbackQuery, callback_data: StepCallback) -> Non
     user.xp += step.xp_reward
     await user.save()
 
+    # Проверяем, вызвано ли из evening flow
+    current_state = await state.get_state()
+    from_evening = current_state == EveningStates.marking_done
+
     # Обновляем сообщение
     assigned_ids = daily_log.assigned_step_ids if daily_log else []
     if assigned_ids:
@@ -70,18 +79,60 @@ async def step_done(callback: CallbackQuery, callback_data: StepCallback) -> Non
         )
 
         all_done = all(s.status == "completed" for s in steps)
+        pending_steps = [s for s in steps if s.status == "pending"]
 
         if all_done:
-            await callback.message.edit_text(
-                f"🎉 *Все шаги выполнены!*\n\n{steps_text}\n\n"
-                f"+{step.xp_reward} XP (всего: {user.xp})\n\n"
-                "Отличная работа! Вечером напиши /evening для итогов."
-            )
+            # Все шаги выполнены
+            if from_evening:
+                # Из evening flow - переходим к оценке дня
+                await state.set_state(EveningStates.rating_day)
+                from src.bot.keyboards import rating_keyboard
+
+                await callback.message.edit_text(
+                    f"🎉 *Все шаги отмечены!*\n\n{steps_text}\n\n"
+                    f"+{step.xp_reward} XP (всего: {user.xp})\n\n"
+                    "Как прошёл день?",
+                    reply_markup=rating_keyboard(),
+                )
+            else:
+                # Обычный flow
+                await callback.message.edit_text(
+                    f"🎉 *Все шаги выполнены!*\n\n{steps_text}\n\n"
+                    f"+{step.xp_reward} XP (всего: {user.xp})\n\n"
+                    "Отличная работа! Вечером напиши /evening для итогов."
+                )
         else:
-            await callback.message.edit_text(
-                f"*Шаги на сегодня:*\n{steps_text}\n\n" f"+{step.xp_reward} XP",
-                reply_markup=steps_list_keyboard(assigned_ids),
-            )
+            # Есть ещё невыполненные шаги
+            # Если из evening flow и больше нет pending - переходим к оценке
+            if from_evening and not pending_steps:
+                await state.set_state(EveningStates.rating_day)
+                from src.bot.keyboards import rating_keyboard
+
+                completed_steps = [s for s in steps if s.status == "completed"]
+                xp_earned = daily_log.xp_earned or 0
+
+                await callback.message.edit_text(
+                    f"🌙 *Итоги дня*\n\n"
+                    f"{steps_text}\n"
+                    f"📊 Выполнено: {len(completed_steps)}/{len(steps)}\n"
+                    f"⭐ XP за день: +{xp_earned}\n\n"
+                    "Как прошёл день?",
+                    reply_markup=rating_keyboard(),
+                )
+            else:
+                # Показываем обновлённый список с кнопками только для pending шагов
+                if pending_steps:
+                    pending_ids = [s.id for s in pending_steps]
+                    await callback.message.edit_text(
+                        f"*Шаги на сегодня:*\n{steps_text}\n\n" f"+{step.xp_reward} XP",
+                        reply_markup=steps_list_keyboard(pending_ids),
+                    )
+                else:
+                    # Все pending отмечены, но не из evening flow
+                    await callback.message.edit_text(
+                        f"*Шаги на сегодня:*\n{steps_text}\n\n"
+                        f"+{step.xp_reward} XP (всего: {user.xp})"
+                    )
 
     logger.info(f"Step {step_id} completed by user {user.telegram_id}")
 
@@ -129,7 +180,12 @@ async def process_skip_reason(message: Message, state: FSMContext) -> None:
         await step.save()
 
     # Обновляем DailyLog
-    user = await User.get(telegram_id=message.from_user.id)
+    user = await User.get_or_none(telegram_id=message.from_user.id)
+    if not user:
+        await state.clear()
+        await message.answer("Пользователь не найден.")
+        return
+
     today = date.today()
     daily_log = await DailyLog.get_or_none(user=user, date=today)
 
