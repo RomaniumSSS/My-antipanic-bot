@@ -51,18 +51,75 @@ async def cmd_morning(message: Message, state: FSMContext) -> None:
     today = date.today()
     existing_log = await DailyLog.get_or_none(user=user, date=today)
     if existing_log and existing_log.energy_level:
-        # Уже был чек-ин — показываем шаги
+        # Уже был чек-ин — проверяем, все ли шаги выполнены
         step_ids = existing_log.assigned_step_ids or []
         if step_ids:
             steps = await Step.filter(id__in=step_ids)
+            pending_steps = [s for s in steps if s.status == "pending"]
+
+            # Если все шаги выполнены — проверяем, не пора ли к новому этапу
+            if not pending_steps:
+                # Проверяем текущий активный этап
+                current_stage = await Stage.filter(
+                    goal=active_goal, status="active"
+                ).first()
+                if current_stage and current_stage.progress >= 100:
+                    # Этап завершён! Переключаемся на следующий
+                    current_stage.status = "completed"
+                    await current_stage.save()
+                    logger.info(
+                        f"Stage '{current_stage.title}' completed via morning check"
+                    )
+
+                    # Ищем следующий этап
+                    next_stage = (
+                        await Stage.filter(goal=active_goal, status="pending")
+                        .order_by("order")
+                        .first()
+                    )
+
+                    if next_stage:
+                        next_stage.status = "active"
+                        await next_stage.save()
+                        logger.info(f"Activated new stage: '{next_stage.title}'")
+
+                        await message.answer(
+                            f"🎉 *Этап «{current_stage.title}» завершён!*\n\n"
+                            f"Переходим к следующему: *{next_stage.title}*\n\n"
+                            "Хочешь запланировать шаги на новый этап?",
+                            reply_markup=energy_keyboard(),
+                        )
+                        await state.set_state(MorningStates.waiting_for_energy)
+                        return
+                    else:
+                        # Все этапы завершены!
+                        active_goal.status = "completed"
+                        await active_goal.save()
+                        await message.answer(
+                            f"🏆 *Поздравляю! Цель «{active_goal.title}» достигнута!*\n\n"
+                            "Все этапы завершены. Напиши /start для новой цели."
+                        )
+                        return
+
+                # Все шаги сделаны, но этап ещё не 100%
+                steps_text = "\n".join(f"✅ {s.title}" for s in steps)
+                await message.answer(
+                    f"🌅 Ты уже всё сделал сегодня!\n\n"
+                    f"*Выполнено:*\n{steps_text}\n\n"
+                    "Отдыхай, завтра продолжим! 💪"
+                )
+                return
+
+            # Есть невыполненные шаги
             steps_text = "\n".join(
                 f"{'✅' if s.status == 'completed' else '⬜'} {s.title}" for s in steps
             )
+            pending_ids = [s.id for s in pending_steps]
             await message.answer(
                 f"🌅 Ты уже начал день!\n\n"
                 f"*Шаги на сегодня:*\n{steps_text}\n\n"
                 "Используй кнопки ниже для отметки:",
-                reply_markup=steps_list_keyboard(step_ids),
+                reply_markup=steps_list_keyboard(pending_ids),
             )
         else:
             await message.answer("Ты уже отметился сегодня. Шагов нет.")
@@ -128,8 +185,15 @@ async def process_mood(message: Message, state: FSMContext) -> None:
         await message.answer("Цель не найдена. Напиши /start")
         return
 
-    # Получаем текущий активный этап
+    # Получаем текущий активный этап с проверкой завершённости
     current_stage = await Stage.filter(goal=active_goal, status="active").first()
+
+    # Если активный этап завершён (100%) — переключаемся на следующий
+    if current_stage and current_stage.progress >= 100:
+        current_stage.status = "completed"
+        await current_stage.save()
+        logger.info(f"Stage '{current_stage.title}' completed, switching to next")
+        current_stage = None  # Искать следующий
 
     if not current_stage:
         # Активируем первый pending этап
@@ -142,13 +206,32 @@ async def process_mood(message: Message, state: FSMContext) -> None:
         if current_stage:
             current_stage.status = "active"
             await current_stage.save()
+            logger.info(f"Activated new stage: '{current_stage.title}'")
         else:
-            await state.clear()
-            await message.answer(
-                "🎉 Все этапы завершены! Цель достигнута?\n"
-                "Напиши /start для новой цели."
-            )
-            return
+            # Проверяем, может все этапы completed
+            completed_stages = await Stage.filter(
+                goal=active_goal, status="completed"
+            ).count()
+            total_stages = await Stage.filter(goal=active_goal).count()
+
+            if completed_stages == total_stages:
+                # Цель достигнута!
+                active_goal.status = "completed"
+                await active_goal.save()
+                await state.clear()
+                await message.answer(
+                    "🎉 *Поздравляю! Цель достигнута!*\n\n"
+                    f"Ты завершил все этапы цели «{active_goal.title}»!\n\n"
+                    "Напиши /start для новой цели."
+                )
+                return
+            else:
+                await state.clear()
+                await message.answer(
+                    "🤔 Не нашёл активных этапов.\n"
+                    "Напиши /start чтобы проверить статус."
+                )
+                return
 
     # Генерируем шаги через AI
     wait_msg = await message.answer("🤔 Планирую шаги на день...")

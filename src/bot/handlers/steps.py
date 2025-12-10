@@ -17,9 +17,53 @@ from aiogram.fsm.context import FSMContext
 from src.bot.callbacks.data import StepCallback, StepAction
 from src.bot.keyboards import steps_list_keyboard
 from src.bot.states import StuckStates, EveningStates
-from src.database.models import User, Step, DailyLog
+from src.database.models import User, Step, DailyLog, Stage
 
 logger = logging.getLogger(__name__)
+
+
+async def update_stage_progress(step: Step) -> None:
+    """
+    Пересчитывает прогресс этапа на основе выполненных шагов.
+
+    Прогресс = (completed_steps / total_steps) * 100
+    Если все шаги завершены (completed или skipped) — этап помечается как completed.
+    """
+    try:
+        # Загружаем этап шага через stage_id (надёжнее чем await step.stage)
+        stage = await Stage.get(id=step.stage_id)
+
+        # Получаем все шаги этапа
+        all_steps = await Step.filter(stage_id=stage.id)
+        total_count = len(all_steps)
+
+        if total_count == 0:
+            logger.warning(f"Stage {stage.id} has no steps, skipping progress update")
+            return
+
+        # Считаем выполненные шаги
+        completed_count = sum(1 for s in all_steps if s.status == "completed")
+
+        # Рассчитываем прогресс
+        new_progress = int((completed_count / total_count) * 100)
+        stage.progress = new_progress
+
+        # Проверяем, все ли шаги завершены (completed или skipped)
+        finished_count = sum(
+            1 for s in all_steps if s.status in ("completed", "skipped")
+        )
+        if finished_count == total_count and completed_count > 0:
+            stage.status = "completed"
+        elif stage.status == "pending" and completed_count > 0:
+            stage.status = "active"
+
+        await stage.save()
+        logger.info(
+            f"Stage {stage.id} progress updated: {new_progress}% ({completed_count}/{total_count})"
+        )
+    except Exception as e:
+        logger.error(f"Failed to update stage progress for step {step.id}: {e}")
+
 
 router = Router()
 
@@ -42,6 +86,9 @@ async def step_done(
     step.status = "completed"
     step.completed_at = datetime.now()
     await step.save()
+
+    # Пересчитываем прогресс этапа
+    await update_stage_progress(step)
 
     # Обновляем DailyLog
     if not callback.from_user:
@@ -178,6 +225,8 @@ async def process_skip_reason(message: Message, state: FSMContext) -> None:
     if step:
         step.status = "skipped"
         await step.save()
+        # Пересчитываем прогресс этапа (skipped не увеличивает %, но может завершить этап)
+        await update_stage_progress(step)
 
     # Обновляем DailyLog
     user = await User.get_or_none(telegram_id=message.from_user.id)
