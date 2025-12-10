@@ -2,15 +2,15 @@
 Stuck handlers — помощь при застревании.
 
 Flow:
-1. Пользователь нажимает "Застрял" на шаге
-2. Выбирает тип блокера
-3. Если "unclear" — запрос деталей
-4. AI генерирует микро-удар
+1. /stuck или кнопка "Застрял" — быстрый доступ к помощи
+2. Выбор типа блокера (опционально)
+3. AI генерирует микро-удар
 """
 
 import logging
 
 from aiogram import Router, F
+from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.context import FSMContext
 from aiogram.dispatcher.event.bases import SkipHandler
@@ -22,14 +22,72 @@ from src.bot.callbacks.data import (
     MicrohitFeedbackAction,
 )
 from src.bot.states import StuckStates
-from src.bot.keyboards import steps_list_keyboard, microhit_feedback_keyboard
-from src.database.models import User, DailyLog, Step
+from src.bot.keyboards import steps_list_keyboard, microhit_feedback_keyboard, blocker_keyboard, main_menu_keyboard
+from src.database.models import User, Goal, Stage, DailyLog, Step
 from src.services.ai import ai_service
 from datetime import date
 
 logger = logging.getLogger(__name__)
 
 router = Router()
+
+
+@router.message(F.text.casefold().in_(("застрял", "/stuck")))
+async def stuck_from_menu(message: Message, state: FSMContext) -> None:
+    """Поддержка кнопки меню для /stuck."""
+    await cmd_stuck(message, state)
+
+
+@router.message(Command("stuck"))
+async def cmd_stuck(message: Message, state: FSMContext) -> None:
+    """
+    Быстрый вход при ступоре — без привязки к конкретному шагу.
+    Сразу предлагает выбрать тип блокера и получить микро-удар.
+    """
+    if not message.from_user:
+        return
+
+    user = await User.get_or_none(telegram_id=message.from_user.id)
+    if not user:
+        await message.answer("Напиши /start чтобы начать.")
+        return
+
+    active_goal = await Goal.filter(user=user, status="active").first()
+    if not active_goal:
+        await message.answer(
+            "У тебя нет активной цели. Напиши /start",
+            reply_markup=main_menu_keyboard(),
+        )
+        return
+
+    # Получаем текущий этап для контекста
+    current_stage = await Stage.filter(goal=active_goal, status="active").first()
+    stage_title = current_stage.title if current_stage else active_goal.title
+
+    # Проверяем, есть ли активные шаги сегодня
+    today = date.today()
+    daily_log = await DailyLog.get_or_none(user=user, date=today)
+
+    step_title = stage_title  # Fallback
+    step_id = None
+
+    if daily_log and daily_log.assigned_step_ids:
+        # Берём первый pending шаг
+        steps = await Step.filter(
+            id__in=daily_log.assigned_step_ids, status="pending"
+        )
+        if steps:
+            first_step = steps[0]
+            step_title = first_step.title
+            step_id = first_step.id
+
+    await state.update_data(stuck_step_id=step_id, stuck_step_title=step_title)
+    await state.set_state(StuckStates.waiting_for_blocker)
+
+    await message.answer(
+        "🆘 *Что мешает двигаться?*",
+        reply_markup=blocker_keyboard(),
+    )
 
 
 # Описания блокеров для промпта

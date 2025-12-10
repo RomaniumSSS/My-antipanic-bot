@@ -64,12 +64,20 @@ class QuickStepAction(str, Enum):
     keep = "keep"  # Оставить как есть
 
 
+class EnergyLevel(str, Enum):
+    """Упрощённые уровни энергии (3 вместо 10)."""
+
+    low = "low"  # 😴 Мало сил (1-3)
+    medium = "medium"  # 😐 Норм (4-6)
+    high = "high"  # ⚡ Бодрый (7-10)
+
+
 # === Callback Data Classes ===
 
 
 class EnergyCallback(CallbackData, prefix="energy"):
     """
-    Выбор уровня энергии (1-10).
+    Выбор уровня энергии (1-10) — legacy, для совместимости.
 
     Использование:
         EnergyCallback(value=7)
@@ -77,6 +85,18 @@ class EnergyCallback(CallbackData, prefix="energy"):
     """
 
     value: int
+
+
+class SimpleEnergyCallback(CallbackData, prefix="nrg"):
+    """
+    Упрощённый выбор энергии (3 уровня).
+    Уменьшает когнитивную нагрузку по Hick's Law.
+
+    Использование:
+        SimpleEnergyCallback(level=EnergyLevel.low)
+    """
+
+    level: EnergyLevel
 
 
 class ConfirmCallback(CallbackData, prefix="confirm"):

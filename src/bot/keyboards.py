@@ -10,6 +10,8 @@ from aiogram.types import InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardBut
 
 from src.bot.callbacks.data import (
     EnergyCallback,
+    SimpleEnergyCallback,
+    EnergyLevel,
     ConfirmCallback,
     BlockerCallback,
     RatingCallback,
@@ -25,11 +27,33 @@ from src.bot.callbacks.data import (
 
 
 def energy_keyboard() -> InlineKeyboardMarkup:
-    """Клавиатура для выбора энергии 1-10."""
+    """Клавиатура для выбора энергии 1-10 (legacy)."""
     builder = InlineKeyboardBuilder()
     for i in range(1, 11):
         builder.button(text=str(i), callback_data=EnergyCallback(value=i))
     builder.adjust(5, 5)
+    return builder.as_markup()
+
+
+def simple_energy_keyboard() -> InlineKeyboardMarkup:
+    """
+    Упрощённая клавиатура энергии — 3 уровня.
+    Снижает когнитивную нагрузку (Hick's Law).
+    """
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="😴 Мало сил",
+        callback_data=SimpleEnergyCallback(level=EnergyLevel.low),
+    )
+    builder.button(
+        text="😐 Норм",
+        callback_data=SimpleEnergyCallback(level=EnergyLevel.medium),
+    )
+    builder.button(
+        text="⚡ Бодрый",
+        callback_data=SimpleEnergyCallback(level=EnergyLevel.high),
+    )
+    builder.adjust(3)
     return builder.as_markup()
 
 
@@ -182,9 +206,9 @@ def main_menu_keyboard() -> ReplyKeyboardMarkup:
     """Главное меню с ключевыми командами."""
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="Утро"), KeyboardButton(text="Вечер")],
-            [KeyboardButton(text="Статус"), KeyboardButton(text="Неделя")],
+            [KeyboardButton(text="Утро"), KeyboardButton(text="Застрял")],
+            [KeyboardButton(text="Вечер"), KeyboardButton(text="Статус")],
         ],
         resize_keyboard=True,
-        input_field_placeholder="Выбери действие: утро, вечер, статус или неделя",
+        input_field_placeholder="Утро — план дня, Застрял — быстрая помощь",
     )

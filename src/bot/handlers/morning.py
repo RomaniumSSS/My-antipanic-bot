@@ -20,11 +20,18 @@ from aiogram.fsm.context import FSMContext
 from src.bot.states import MorningStates
 from src.bot.keyboards import (
     energy_keyboard,
+    simple_energy_keyboard,
     steps_list_keyboard,
     low_energy_keyboard,
     main_menu_keyboard,
 )
-from src.bot.callbacks.data import EnergyCallback, QuickStepCallback, QuickStepAction
+from src.bot.callbacks.data import (
+    EnergyCallback,
+    SimpleEnergyCallback,
+    EnergyLevel,
+    QuickStepCallback,
+    QuickStepAction,
+)
 from src.database.models import User, Goal, Stage, Step, DailyLog
 from src.services.ai import ai_service
 
@@ -146,10 +153,206 @@ async def cmd_morning(message: Message, state: FSMContext) -> None:
     await state.set_state(MorningStates.waiting_for_energy)
 
     await message.answer(
-        "🌅 *Доброе утро!*\n\n"
-        "Как твоя энергия сегодня?\n"
-        "Выбери от 1 (совсем нет сил) до 10 (бодрость максимум):",
-        reply_markup=energy_keyboard(),
+        "🌅 *Как ты сегодня?*",
+        reply_markup=simple_energy_keyboard(),
+    )
+
+
+@router.callback_query(MorningStates.waiting_for_energy, SimpleEnergyCallback.filter())
+async def process_simple_energy(
+    callback: CallbackQuery, callback_data: SimpleEnergyCallback, state: FSMContext
+) -> None:
+    """
+    Упрощённый выбор энергии (3 уровня).
+    При низкой энергии — сразу микрошаг.
+    При средней/высокой — генерация шагов без ввода настроения.
+    """
+    await callback.answer()
+
+    level = callback_data.level
+
+    # Маппинг уровня в числовое значение для AI
+    energy_map = {
+        EnergyLevel.low: 2,
+        EnergyLevel.medium: 5,
+        EnergyLevel.high: 8,
+    }
+    energy = energy_map[level]
+
+    if not callback.from_user:
+        return
+
+    user = await User.get_or_none(telegram_id=callback.from_user.id)
+    if not user:
+        await state.clear()
+        await callback.message.edit_text("Напиши /start чтобы начать.")
+        return
+
+    active_goal = await Goal.filter(user=user, status="active").first()
+    if not active_goal:
+        await state.clear()
+        await callback.message.edit_text(
+            "Цель не найдена. Напиши /start",
+            reply_markup=main_menu_keyboard(),
+        )
+        return
+
+    # Получаем текущий этап
+    current_stage = await Stage.filter(goal=active_goal, status="active").first()
+
+    if current_stage and current_stage.progress >= 100:
+        current_stage.status = "completed"
+        await current_stage.save()
+        current_stage = None
+
+    if not current_stage:
+        current_stage = (
+            await Stage.filter(goal=active_goal, status="pending")
+            .order_by("order")
+            .first()
+        )
+        if current_stage:
+            current_stage.status = "active"
+            await current_stage.save()
+        else:
+            # Все этапы завершены
+            completed_count = await Stage.filter(
+                goal=active_goal, status="completed"
+            ).count()
+            total_count = await Stage.filter(goal=active_goal).count()
+
+            if completed_count == total_count:
+                active_goal.status = "completed"
+                await active_goal.save()
+                await state.clear()
+                await callback.message.edit_text(
+                    f"🎉 *Цель «{active_goal.title}» достигнута!*\n\n"
+                    "Напиши /start для новой цели."
+                )
+                return
+
+            await state.clear()
+            await callback.message.edit_text(
+                "Нет активных этапов. Напиши /start",
+                reply_markup=main_menu_keyboard(),
+            )
+            return
+
+    # === НИЗКАЯ ЭНЕРГИЯ: сразу микрошаг ===
+    if level == EnergyLevel.low:
+        wait_msg = await callback.message.edit_text("⏳ Подбираю микрошаг...")
+
+        micro_step_text = await ai_service.generate_micro_step(
+            stage_title=current_stage.title, energy=energy, mood="мало сил"
+        )
+
+        today = date.today()
+        micro_step = await Step.create(
+            stage=current_stage,
+            title=micro_step_text,
+            difficulty="easy",
+            estimated_minutes=2,
+            xp_reward=5,
+            scheduled_date=today,
+            status="pending",
+        )
+
+        # Создаём/обновляем DailyLog
+        daily_log, _ = await DailyLog.get_or_create(
+            user=user,
+            date=today,
+            defaults={
+                "energy_level": energy,
+                "mood_text": "мало сил",
+                "assigned_step_ids": [micro_step.id],
+            },
+        )
+        if not daily_log.assigned_step_ids:
+            daily_log.energy_level = energy
+            daily_log.assigned_step_ids = [micro_step.id]
+            await daily_log.save()
+
+        await state.clear()
+
+        await wait_msg.edit_text(
+            f"😴 Понял, энергии мало.\n\n"
+            f"*Твой микрошаг на 2 минуты:*\n"
+            f"👉 {micro_step_text}\n\n"
+            "Сделай только это — и день уже не зря.",
+            reply_markup=steps_list_keyboard([micro_step.id]),
+        )
+
+        logger.info(
+            f"Low energy micro-step for user {user.telegram_id}: '{micro_step_text[:40]}...'"
+        )
+        return
+
+    # === СРЕДНЯЯ/ВЫСОКАЯ ЭНЕРГИЯ: генерация шагов ===
+    wait_msg = await callback.message.edit_text("⏳ Планирую шаги...")
+
+    mood = "нормально" if level == EnergyLevel.medium else "бодро"
+    steps_data = await ai_service.generate_steps(
+        stage_title=current_stage.title, energy=energy, mood=mood
+    )
+
+    today = date.today()
+    created_steps = []
+
+    for step_info in steps_data:
+        difficulty = step_info.get("difficulty", "medium")
+        minutes = step_info.get("minutes", 15)
+        xp_map = {"easy": 10, "medium": 20, "hard": 40}
+        xp = xp_map.get(difficulty, 20)
+
+        step = await Step.create(
+            stage=current_stage,
+            title=step_info["title"],
+            difficulty=difficulty,
+            estimated_minutes=minutes,
+            xp_reward=xp,
+            scheduled_date=today,
+            status="pending",
+        )
+        created_steps.append(step)
+
+    step_ids = [s.id for s in created_steps]
+
+    daily_log, _ = await DailyLog.get_or_create(
+        user=user,
+        date=today,
+        defaults={
+            "energy_level": energy,
+            "mood_text": mood,
+            "assigned_step_ids": step_ids,
+        },
+    )
+    if not daily_log.assigned_step_ids:
+        daily_log.energy_level = energy
+        daily_log.mood_text = mood
+        daily_log.assigned_step_ids = step_ids
+        await daily_log.save()
+
+    # Формируем текст шагов
+    steps_text = ""
+    for i, step in enumerate(created_steps, 1):
+        diff_emoji = {"easy": "🟢", "medium": "🟡", "hard": "🔴"}.get(
+            step.difficulty, "🟡"
+        )
+        steps_text += f"{i}. {step.title} {diff_emoji} ~{step.estimated_minutes}мин\n"
+
+    await state.clear()
+
+    level_text = "😐" if level == EnergyLevel.medium else "⚡"
+    await wait_msg.edit_text(
+        f"{level_text} *Шаги на сегодня:*\n\n"
+        f"{steps_text}\n"
+        f"📍 Этап: _{current_stage.title}_",
+        reply_markup=steps_list_keyboard(step_ids),
+    )
+
+    logger.info(
+        f"Morning check-in for user {user.telegram_id}: "
+        f"energy={level.value}, steps={len(created_steps)}"
     )
 
 
@@ -157,7 +360,7 @@ async def cmd_morning(message: Message, state: FSMContext) -> None:
 async def process_energy(
     callback: CallbackQuery, callback_data: EnergyCallback, state: FSMContext
 ) -> None:
-    """Обработка выбора энергии."""
+    """Обработка выбора энергии (legacy 1-10, для совместимости)."""
     await callback.answer()
 
     energy = callback_data.value

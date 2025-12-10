@@ -77,20 +77,16 @@ async def process_goal(message: Message, state: FSMContext) -> None:
     """Получение цели от пользователя."""
     goal_text = message.text
     if not goal_text or len(goal_text) < 5:
-        await message.answer(
-            "Цель слишком короткая. Опиши подробнее, чего хочешь достичь."
-        )
+        await message.answer("Опиши цель подробнее (хотя бы 5 символов).")
         return
 
     await state.update_data(goal_text=goal_text)
     await state.set_state(OnboardingStates.waiting_for_deadline)
 
     await message.answer(
-        f"Отлично! Цель: *{goal_text}*\n\n"
-        "Теперь укажи *дедлайн* — когда хочешь достичь цели?\n\n"
-        "Форматы:\n"
-        "• `25.12.2025` или `25/12/2025`\n"
-        "• `+30 дней` или `через 30 дней`"
+        f"🎯 *{goal_text}*\n\n"
+        "*Когда хочешь достичь?*\n"
+        "Напиши: `25.12.2025` или `+30 дней`"
     )
 
 
@@ -100,9 +96,7 @@ async def process_deadline(message: Message, state: FSMContext) -> None:
     deadline = parse_date(message.text or "")
 
     if not deadline:
-        await message.answer(
-            "Не понял дату. Попробуй ещё раз.\n" "Примеры: `25.12.2025`, `+30 дней`"
-        )
+        await message.answer("Не понял. Примеры: `25.12.2025` или `+30 дней`")
         return
 
     if deadline <= date.today():
@@ -200,13 +194,10 @@ async def confirm_stages(callback: CallbackQuery, state: FSMContext) -> None:
     await state.clear()
 
     await callback.message.edit_text(
-        "✅ *Цель создана!*\n\n"
+        f"✅ *Цель создана!*\n\n"
         f"🎯 {goal_text}\n"
-        f"📅 Дедлайн: {deadline.strftime('%d.%m.%Y')}\n\n"
-        "Я буду напоминать тебе утром (09:00) и вечером (21:00).\n\n"
-        "Команды:\n"
-        "/morning — начать планирование дня\n"
-        "/status — посмотреть прогресс",
+        f"📅 До {deadline.strftime('%d.%m.%Y')}\n\n"
+        "Жми *Утро* — спланируем первый день.",
         reply_markup=main_menu_keyboard(),
     )
 
