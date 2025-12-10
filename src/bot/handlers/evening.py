@@ -11,19 +11,25 @@ Flow:
 from datetime import date, timedelta
 import logging
 
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 
 from src.bot.states import EveningStates
-from src.bot.keyboards import rating_keyboard, steps_list_keyboard
+from src.bot.keyboards import rating_keyboard, steps_list_keyboard, main_menu_keyboard
 from src.bot.callbacks.data import RatingCallback
 from src.database.models import User, Step, DailyLog
 
 logger = logging.getLogger(__name__)
 
 router = Router()
+
+
+@router.message(F.text.casefold().in_(("вечер", "/evening")))
+async def evening_from_menu(message: Message, state: FSMContext) -> None:
+    """Поддержка кнопки меню для запуска /evening."""
+    await cmd_evening(message, state)
 
 
 @router.message(Command("evening"))
@@ -41,7 +47,11 @@ async def cmd_evening(message: Message, state: FSMContext) -> None:
     daily_log = await DailyLog.get_or_none(user=user, date=today)
 
     if not daily_log or not daily_log.assigned_step_ids:
-        await message.answer("🌙 Сегодня шагов не было.\n\n" "Начни завтра с /morning!")
+        await message.answer(
+            "Сегодня ещё не было старта дня. "
+            "Сначала сделай короткий утренний чек-ин через кнопку «Утро».",
+            reply_markup=main_menu_keyboard(),
+        )
         return
 
     # Получаем шаги

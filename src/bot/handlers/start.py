@@ -1,6 +1,6 @@
 """Базовые хендлеры: /start, /help, /id, /status."""
 
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
@@ -10,6 +10,12 @@ from src.bot.states import OnboardingStates
 from src.bot.keyboards import main_menu_keyboard
 
 router = Router()
+
+
+@router.message(F.text.casefold().in_(("статус", "/status")))
+async def status_from_menu(message: Message) -> None:
+    """Поддержка кнопки меню для /status."""
+    await cmd_status(message)
 
 
 async def get_or_create_user(message: Message) -> User:
@@ -106,7 +112,8 @@ async def cmd_status(message: Message) -> None:
 
     if not active_goal:
         await message.answer(
-            "У тебя пока нет активной цели.\n" "Напиши /start чтобы создать."
+            "У тебя пока нет активной цели.\n" "Напиши /start чтобы создать.",
+            reply_markup=main_menu_keyboard(),
         )
         return
 
@@ -130,5 +137,6 @@ async def cmd_status(message: Message) -> None:
         f"*Этапы:*\n{stages_text}\n"
         f"📅 Осталось дней: {days_left}\n"
         f"🔥 Streak: {user.streak_days} дней\n"
-        f"⭐ XP: {user.xp}"
+        f"⭐ XP: {user.xp}",
+        reply_markup=main_menu_keyboard(),
     )

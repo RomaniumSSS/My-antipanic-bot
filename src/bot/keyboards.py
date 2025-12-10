@@ -182,8 +182,9 @@ def main_menu_keyboard() -> ReplyKeyboardMarkup:
     """Главное меню с ключевыми командами."""
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="/morning"), KeyboardButton(text="/status")],
-            [KeyboardButton(text="/evening"), KeyboardButton(text="/weekly")],
+            [KeyboardButton(text="Утро"), KeyboardButton(text="Вечер")],
+            [KeyboardButton(text="Статус"), KeyboardButton(text="Неделя")],
         ],
         resize_keyboard=True,
+        input_field_placeholder="Выбери действие: утро, вечер, статус или неделя",
     )

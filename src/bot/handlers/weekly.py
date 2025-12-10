@@ -7,7 +7,7 @@ Weekly report handler — статистика за неделю.
 from datetime import date, timedelta
 import logging
 
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message
 
@@ -16,6 +16,12 @@ from src.database.models import User, Goal, DailyLog
 logger = logging.getLogger(__name__)
 
 router = Router()
+
+
+@router.message(F.text.casefold().in_(("неделя", "/weekly")))
+async def weekly_from_menu(message: Message) -> None:
+    """Поддержка кнопки меню для запуска /weekly."""
+    await cmd_weekly(message)
 
 
 @router.message(Command("weekly"))

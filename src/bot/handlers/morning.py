@@ -12,13 +12,18 @@ Flow:
 from datetime import date
 import logging
 
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 
 from src.bot.states import MorningStates
-from src.bot.keyboards import energy_keyboard, steps_list_keyboard, low_energy_keyboard
+from src.bot.keyboards import (
+    energy_keyboard,
+    steps_list_keyboard,
+    low_energy_keyboard,
+    main_menu_keyboard,
+)
 from src.bot.callbacks.data import EnergyCallback, QuickStepCallback, QuickStepAction
 from src.database.models import User, Goal, Stage, Step, DailyLog
 from src.services.ai import ai_service
@@ -26,6 +31,12 @@ from src.services.ai import ai_service
 logger = logging.getLogger(__name__)
 
 router = Router()
+
+
+@router.message(F.text.casefold().in_(("утро", "/morning")))
+async def morning_from_menu(message: Message, state: FSMContext) -> None:
+    """Поддержка кнопки меню для запуска /morning."""
+    await cmd_morning(message, state)
 
 
 @router.message(Command("morning"))
@@ -43,7 +54,8 @@ async def cmd_morning(message: Message, state: FSMContext) -> None:
     active_goal = await Goal.filter(user=user, status="active").first()
     if not active_goal:
         await message.answer(
-            "У тебя нет активной цели.\n" "Напиши /start чтобы создать."
+            "У тебя нет активной цели.\n" "Напиши /start чтобы создать.",
+            reply_markup=main_menu_keyboard(),
         )
         return
 
@@ -104,9 +116,11 @@ async def cmd_morning(message: Message, state: FSMContext) -> None:
                 # Все шаги сделаны, но этап ещё не 100%
                 steps_text = "\n".join(f"✅ {s.title}" for s in steps)
                 await message.answer(
-                    f"🌅 Ты уже всё сделал сегодня!\n\n"
+                    "Утренний чек-ин на сегодня уже есть. "
+                    "Можешь отметить шаги ниже или посмотреть статус.\n\n"
                     f"*Выполнено:*\n{steps_text}\n\n"
-                    "Отдыхай, завтра продолжим! 💪"
+                    "Отдыхай, завтра продолжим! 💪",
+                    reply_markup=main_menu_keyboard(),
                 )
                 return
 
@@ -116,13 +130,17 @@ async def cmd_morning(message: Message, state: FSMContext) -> None:
             )
             pending_ids = [s.id for s in pending_steps]
             await message.answer(
-                f"🌅 Ты уже начал день!\n\n"
+                "Утренний чек-ин на сегодня уже есть. "
+                "Можешь отметить шаги ниже или посмотреть статус.\n\n"
                 f"*Шаги на сегодня:*\n{steps_text}\n\n"
                 "Используй кнопки ниже для отметки:",
                 reply_markup=steps_list_keyboard(pending_ids),
             )
         else:
-            await message.answer("Ты уже отметился сегодня. Шагов нет.")
+            await message.answer(
+                "Утренний чек-ин на сегодня уже есть. Шагов сегодня нет.",
+                reply_markup=main_menu_keyboard(),
+            )
         return
 
     await state.set_state(MorningStates.waiting_for_energy)
