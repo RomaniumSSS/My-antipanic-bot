@@ -15,9 +15,10 @@ from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.context import FSMContext
 
 from src.bot.callbacks.data import StepCallback, StepAction
-from src.bot.keyboards import steps_list_keyboard
-from src.bot.states import StuckStates, EveningStates
-from src.database.models import User, Step, DailyLog, Stage
+from src.bot.keyboards import steps_list_keyboard, tension_keyboard
+from src.bot.states import StuckStates, EveningStates, AntipanicSession
+from src.database.models import User, Step, DailyLog, Stage, Goal
+from src.services import session as session_service
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +117,8 @@ async def step_done(
     # Проверяем, вызвано ли из evening flow
     current_state = await state.get_state()
     from_evening = current_state == EveningStates.marking_done
+    is_antipanic_body = current_state == AntipanicSession.doing_body_action
+    is_antipanic_micro = current_state == AntipanicSession.doing_micro_action
 
     # Обновляем сообщение
     assigned_ids = daily_log.assigned_step_ids if daily_log else []
@@ -181,6 +184,40 @@ async def step_done(
                         f"+{step.xp_reward} XP (всего: {user.xp})"
                     )
 
+    if is_antipanic_body or is_antipanic_micro:
+        data = await state.get_data()
+        goal_id = data.get("goal_id")
+        goal = await Goal.get_or_none(id=goal_id, user=user) if goal_id else None
+
+        if is_antipanic_body and step_id == data.get("body_step_id"):
+            if goal:
+                try:
+                    micro_step = await session_service.get_task_micro_action(
+                        user=user,
+                        goal=goal,
+                        tension=data.get("tension_before"),
+                        max_minutes=5,
+                    )
+                    await state.update_data(micro_step_id=micro_step.id)
+                    await state.set_state(AntipanicSession.doing_micro_action)
+                    await callback.message.answer(
+                        "🔥 Тело включили, теперь микрошаг по задаче (2–5 минут):\n"
+                        f"👉 {micro_step.title}",
+                        reply_markup=steps_list_keyboard([micro_step.id]),
+                    )
+                except Exception as e:  # noqa: BLE001
+                    logger.error(f"Failed to create micro action: {e}")
+            else:
+                await callback.message.answer(
+                    "Шаг сохранил. Обнови цель через /start, чтобы продолжить."
+                )
+        elif is_antipanic_micro and step_id == data.get("micro_step_id"):
+            await state.set_state(AntipanicSession.rating_tension_after)
+            await callback.message.answer(
+                "Отметь, насколько сейчас напряжение (0–10):",
+                reply_markup=tension_keyboard(),
+            )
+
     logger.info(f"Step {step_id} completed by user {user.telegram_id}")
 
 
@@ -196,6 +233,57 @@ async def step_skip(
 
     if not step:
         await callback.message.edit_text("Шаг не найден.")
+        return
+
+    current_state = await state.get_state()
+    is_antipanic = current_state in (
+        AntipanicSession.doing_body_action,
+        AntipanicSession.doing_micro_action,
+    )
+
+    if is_antipanic:
+        # Быстрый пропуск без лишних вопросов для анти-паралич режима
+        step.status = "skipped"
+        await step.save()
+        await update_stage_progress(step)
+
+        user = await User.get_or_none(telegram_id=callback.from_user.id)
+        today = date.today()
+        daily_log = await DailyLog.get_or_none(user=user, date=today)
+        if daily_log:
+            skip_reasons = daily_log.skip_reasons or {}
+            skip_reasons[str(step_id)] = "-"
+            daily_log.skip_reasons = skip_reasons
+            await daily_log.save()
+
+        data = await state.get_data()
+        if current_state == AntipanicSession.doing_body_action:
+            goal = (
+                await Goal.get_or_none(id=data.get("goal_id"), user=user)
+                if user
+                else None
+            )
+            if goal:
+                micro_step = await session_service.get_task_micro_action(
+                    user=user, goal=goal, tension=data.get("tension_before"), max_minutes=5
+                )
+                await state.update_data(micro_step_id=micro_step.id)
+                await state.set_state(AntipanicSession.doing_micro_action)
+                await callback.message.edit_text(
+                    "Ок, тело пропустили. Давай всё равно попробуем микрошаг по задаче:\n"
+                    f"👉 {micro_step.title}",
+                    reply_markup=steps_list_keyboard([micro_step.id]),
+                )
+            else:
+                await callback.message.edit_text(
+                    "Пропустили шаг. Обнови цель через /start, чтобы продолжить."
+                )
+        else:
+            await state.set_state(AntipanicSession.rating_tension_after)
+            await callback.message.edit_text(
+                "Принял. Оцени напряжение сейчас (0–10):",
+                reply_markup=tension_keyboard(),
+            )
         return
 
     await state.update_data(skipping_step_id=step_id)

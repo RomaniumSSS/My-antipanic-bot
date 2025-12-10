@@ -18,6 +18,10 @@ from src.bot.callbacks.data import (
     StepCallback,
     MicrohitFeedbackCallback,
     QuickStepCallback,
+    GoalSelectCallback,
+    TensionCallback,
+    DeepenCallback,
+    DeepenAction,
     BlockerType,
     ConfirmAction,
     StepAction,
@@ -212,3 +216,39 @@ def main_menu_keyboard() -> ReplyKeyboardMarkup:
         resize_keyboard=True,
         input_field_placeholder="Утро — план дня, Застрял — быстрая помощь",
     )
+
+
+def goal_select_keyboard(goals: list) -> InlineKeyboardMarkup:
+    """Выбор цели/темы для утреннего анти-паралич потока."""
+    builder = InlineKeyboardBuilder()
+    for goal in goals:
+        builder.button(
+            text=f"🎯 {getattr(goal, 'title', 'Цель')}",
+            callback_data=GoalSelectCallback(goal_id=getattr(goal, "id", 0)),
+        )
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def tension_keyboard() -> InlineKeyboardMarkup:
+    """Шкала напряжения 0-10 (шаг 2) для лёгкого выбора."""
+    builder = InlineKeyboardBuilder()
+    for value in (0, 2, 4, 6, 8, 10):
+        builder.button(text=str(value), callback_data=TensionCallback(value=value))
+    builder.adjust(6)
+    return builder.as_markup()
+
+
+def deepen_keyboard() -> InlineKeyboardMarkup:
+    """Кнопки после оценки: углубиться или завершить."""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="🚀 Ещё 15–30 минут",
+        callback_data=DeepenCallback(action=DeepenAction.more),
+    )
+    builder.button(
+        text="✅ Хватит, сохранить прогресс",
+        callback_data=DeepenCallback(action=DeepenAction.finish),
+    )
+    builder.adjust(1, 1)
+    return builder.as_markup()

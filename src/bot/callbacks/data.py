@@ -72,6 +72,13 @@ class EnergyLevel(str, Enum):
     high = "high"  # ⚡ Бодрый (7-10)
 
 
+class DeepenAction(str, Enum):
+    """Решение после анти-паралич шага."""
+
+    more = "more"  # Хочу ещё 15-30 минут
+    finish = "finish"  # Хватит на сегодня
+
+
 # === Callback Data Classes ===
 
 
@@ -173,3 +180,21 @@ class QuickStepCallback(CallbackData, prefix="quickstep"):
     """
 
     action: QuickStepAction
+
+
+class GoalSelectCallback(CallbackData, prefix="goalpick"):
+    """Выбор активной цели в новом утреннем потоке."""
+
+    goal_id: int
+
+
+class TensionCallback(CallbackData, prefix="tension"):
+    """Выбор уровня напряжения/тревоги 0-10."""
+
+    value: int
+
+
+class DeepenCallback(CallbackData, prefix="deepen"):
+    """Решение углубиться после анти-паралич шага."""
+
+    action: DeepenAction

@@ -28,6 +28,17 @@ class MorningStates(StatesGroup):
     waiting_for_quick_step = State()  # Ожидание выбора микрошага на 2 мин
 
 
+class AntipanicSession(StatesGroup):
+    """Антипараличный поток /morning: быстро в действие."""
+
+    selecting_topic = State()  # Выбор цели/темы если их несколько
+    rating_tension_before = State()  # Замер напряжения 0-10 перед действием
+    doing_body_action = State()  # Телесное микро-действие
+    doing_micro_action = State()  # Шаг по задаче 2-5 минут
+    rating_tension_after = State()  # Замер после действий
+    offered_deepen = State()  # Предложение углубиться или завершить
+
+
 class StuckStates(StatesGroup):
     """Когда застрял."""
 
