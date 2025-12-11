@@ -3,7 +3,7 @@
 Загружает переменные из .env файла.
 """
 
-from typing import List, Union, Any
+from typing import Any
 
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -19,13 +19,13 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = "gpt-4.1"
 
     # Alpha Testing: Whitelist (empty = open access)
-    ALLOWED_USER_IDS: List[int] = []
+    ALLOWED_USER_IDS: list[int] = []
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     @field_validator("ALLOWED_USER_IDS", mode="before")
     @classmethod
-    def parse_allowed_ids(cls, v: Union[str, List[Any]]) -> List[int]:
+    def parse_allowed_ids(cls, v: str | list[Any]) -> list[int]:
         if isinstance(v, str):
             if not v.strip():
                 return []

@@ -3,30 +3,30 @@ Legacy morning check-in flow (kept for reference/backward compatibility).
 New antiparalysis flow lives in src/bot/handlers/morning.py.
 """
 
-from datetime import date
 import logging
+from datetime import date
 
-from aiogram import Router, F
+from aiogram import F, Router
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, Message
 
-from src.bot.states import MorningStates
-from src.bot.keyboards import (
-    energy_keyboard,
-    simple_energy_keyboard,
-    steps_list_keyboard,
-    low_energy_keyboard,
-    main_menu_keyboard,
-)
 from src.bot.callbacks.data import (
     EnergyCallback,
-    SimpleEnergyCallback,
     EnergyLevel,
-    QuickStepCallback,
     QuickStepAction,
+    QuickStepCallback,
+    SimpleEnergyCallback,
 )
-from src.database.models import User, Goal, Stage, Step, DailyLog
+from src.bot.keyboards import (
+    energy_keyboard,
+    low_energy_keyboard,
+    main_menu_keyboard,
+    simple_energy_keyboard,
+    steps_list_keyboard,
+)
+from src.bot.states import MorningStates
+from src.database.models import DailyLog, Goal, Stage, Step, User
 from src.services.ai import ai_service
 
 logger = logging.getLogger(__name__)
@@ -146,9 +146,7 @@ async def cmd_morning(message: Message, state: FSMContext) -> None:
 
     await state.set_state(MorningStates.waiting_for_energy)
 
-    await message.answer(
-        "🌅 *Как ты сегодня?*", reply_markup=simple_energy_keyboard()
-    )
+    await message.answer("🌅 *Как ты сегодня?*", reply_markup=simple_energy_keyboard())
 
 
 @router.callback_query(MorningStates.waiting_for_energy, SimpleEnergyCallback.filter())
@@ -644,4 +642,3 @@ async def process_quick_step_choice(
         f"Micro-step generated for user {user.telegram_id}: "
         f"energy={energy}, step='{micro_step_text[:50]}...'"
     )
-

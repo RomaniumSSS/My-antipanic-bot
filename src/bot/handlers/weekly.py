@@ -4,14 +4,14 @@ Weekly report handler — статистика за неделю.
 /weekly — агрегация DailyLog за 7 дней
 """
 
-from datetime import date, timedelta
 import logging
+from datetime import date, timedelta
 
-from aiogram import Router, F
+from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
-from src.database.models import User, Goal, DailyLog
+from src.database.models import DailyLog, Goal, User
 
 logger = logging.getLogger(__name__)
 

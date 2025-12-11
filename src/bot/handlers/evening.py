@@ -8,22 +8,32 @@ Flow:
 4. Обновление streak, XP
 """
 
-from datetime import date, timedelta
 import logging
+from datetime import date, timedelta
 
-from aiogram import Router, F
+from aiogram import F, Router
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, Message
 
-from src.bot.states import EveningStates
-from src.bot.keyboards import rating_keyboard, steps_list_keyboard, main_menu_keyboard
 from src.bot.callbacks.data import RatingCallback
-from src.database.models import User, Step, DailyLog
+from src.bot.keyboards import main_menu_keyboard, rating_keyboard, steps_list_keyboard
+from src.bot.states import EveningStates
+from src.database.models import DailyLog, Step, User
 
 logger = logging.getLogger(__name__)
 
 router = Router()
+
+
+def update_streak(user: User, today: date) -> None:
+    """Пересчитать streak с учётом сегодняшней даты."""
+    yesterday = today - timedelta(days=1)
+    if user.streak_last_date == yesterday:
+        user.streak_days += 1
+    elif user.streak_last_date != today:
+        user.streak_days = 1
+    user.streak_last_date = today
 
 
 @router.message(F.text.casefold().in_(("вечер", "/evening")))
@@ -147,13 +157,7 @@ async def process_rating(
         await daily_log.save()
 
     # Обновляем streak
-    yesterday = today - timedelta(days=1)
-    if user.streak_last_date == yesterday:
-        user.streak_days += 1
-    elif user.streak_last_date != today:
-        user.streak_days = 1
-
-    user.streak_last_date = today
+    update_streak(user, today)
     await user.save()
 
     await state.clear()

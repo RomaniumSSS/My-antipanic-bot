@@ -7,20 +7,48 @@ Callback actions:
 - stuck: переход в stuck flow
 """
 
-from datetime import date, datetime
 import logging
+from datetime import date, datetime
 
-from aiogram import Router, F
-from aiogram.types import CallbackQuery, Message
+from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, Message
 
-from src.bot.callbacks.data import StepCallback, StepAction
-from src.bot.keyboards import steps_list_keyboard, tension_keyboard
-from src.bot.states import StuckStates, EveningStates, AntipanicSession
-from src.database.models import User, Step, DailyLog, Stage, Goal
+from src.bot.callbacks.data import (
+    PaywallAction,
+    PaywallCallback,
+    StepAction,
+    StepCallback,
+)
+from src.bot.keyboards import (
+    main_menu_keyboard,
+    paywall_keyboard,
+    steps_list_keyboard,
+    tension_keyboard,
+)
+from src.bot.states import (
+    AntipanicSession,
+    EveningStates,
+    OnboardingSprintStates,
+    OnboardingStates,
+    StuckStates,
+)
+from src.database.models import DailyLog, Goal, Stage, Step, User
 from src.services import session as session_service
 
 logger = logging.getLogger(__name__)
+
+PAYWALL_TEXT = (
+    "🔥 Смотри, что только что произошло:\n"
+    "- Ты был в тумане и всё равно сдвинулся\n"
+    '- Твой мозг получил сигнал: "я ещё могу действовать"\n'
+    '- Это уже больше, чем весь "завтра начну"\n\n'
+    "Чтобы это не было разовым всплеском, я предлагаю **3-дневную миссию**.\n"
+    "Я буду вести тебя каждый день — микрошаги, антипаралич.\n"
+    "Просто чтобы ты вышел из ступора в стабильность.\n\n"
+    "**Бесплатно на 3 дня.** Дальше — $5/месяц.\n"
+    "Попробуешь?"
+)
 
 
 async def update_stage_progress(step: Step) -> None:
@@ -212,11 +240,18 @@ async def step_done(
                     "Шаг сохранил. Обнови цель через /start, чтобы продолжить."
                 )
         elif is_antipanic_micro and step_id == data.get("micro_step_id"):
-            await state.set_state(AntipanicSession.rating_tension_after)
-            await callback.message.answer(
-                "Отметь, насколько сейчас напряжение (0–10):",
-                reply_markup=tension_keyboard(),
-            )
+            if data.get("onboarding_sprint"):
+                await state.set_state(OnboardingSprintStates.paywall)
+                await callback.message.answer(
+                    PAYWALL_TEXT,
+                    reply_markup=paywall_keyboard(),
+                )
+            else:
+                await state.set_state(AntipanicSession.rating_tension_after)
+                await callback.message.answer(
+                    "Отметь, насколько сейчас напряжение (0–10):",
+                    reply_markup=tension_keyboard(),
+                )
 
     logger.info(f"Step {step_id} completed by user {user.telegram_id}")
 
@@ -265,7 +300,10 @@ async def step_skip(
             )
             if goal:
                 micro_step = await session_service.get_task_micro_action(
-                    user=user, goal=goal, tension=data.get("tension_before"), max_minutes=5
+                    user=user,
+                    goal=goal,
+                    tension=data.get("tension_before"),
+                    max_minutes=5,
                 )
                 await state.update_data(micro_step_id=micro_step.id)
                 await state.set_state(AntipanicSession.doing_micro_action)
@@ -362,6 +400,32 @@ async def process_skip_reason(message: Message, state: FSMContext) -> None:
             )
 
     logger.info(f"Step {step_id} skipped by user {user.telegram_id}: {reason}")
+
+
+@router.callback_query(OnboardingSprintStates.paywall, PaywallCallback.filter())
+async def handle_paywall_choice(
+    callback: CallbackQuery, callback_data: PaywallCallback, state: FSMContext
+) -> None:
+    """Обработка пейволла после мини-спринта."""
+    await callback.answer()
+
+    await state.clear()
+
+    if callback_data.action == PaywallAction.accept:
+        await state.set_state(OnboardingStates.waiting_for_goal)
+        await callback.message.edit_text(
+            "🔥 Поехали в 3-дневную миссию.\n\n"
+            "👋 Я помогу двигаться к цели маленькими шагами.\n\n"
+            "*Какую цель хочешь достичь?*\n"
+            "Например: выучить Python, запустить блог, похудеть",
+            reply_markup=main_menu_keyboard(),
+        )
+        return
+
+    await callback.message.edit_text(
+        "Окей, без проблем. Когда захочешь начать — жми /start",
+        reply_markup=main_menu_keyboard(),
+    )
 
 
 @router.callback_query(StepCallback.filter(F.action == StepAction.stuck))

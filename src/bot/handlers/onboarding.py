@@ -9,17 +9,17 @@ Flow:
 5. Создание Goal + Stages в БД
 """
 
-from datetime import date, timedelta
 import logging
+from datetime import date, timedelta
 
-from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, Message
 
-from src.bot.states import OnboardingStates
+from src.bot.callbacks.data import ConfirmAction, ConfirmCallback
 from src.bot.keyboards import confirm_keyboard, main_menu_keyboard
-from src.bot.callbacks.data import ConfirmCallback, ConfirmAction
-from src.database.models import User, Goal, Stage
+from src.bot.states import OnboardingStates
+from src.database.models import Goal, Stage, User
 from src.services.ai import ai_service
 from src.services.scheduler import setup_user_reminders
 

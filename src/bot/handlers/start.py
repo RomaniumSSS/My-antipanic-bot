@@ -1,13 +1,13 @@
 """Базовые хендлеры: /start, /help, /id, /status."""
 
-from aiogram import Router, F
-from aiogram.filters import CommandStart, Command
-from aiogram.types import Message
+from aiogram import F, Router
+from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
+from aiogram.types import Message
 
-from src.database.models import User, Goal
-from src.bot.states import OnboardingStates
+from src.bot.handlers.quiz import start_quiz
 from src.bot.keyboards import main_menu_keyboard
+from src.database.models import Goal, User
 
 router = Router()
 
@@ -37,8 +37,7 @@ async def get_or_create_user(message: Message) -> User:
 async def cmd_start(message: Message, state: FSMContext) -> None:
     """
     Точка входа:
-    - Новый пользователь → онбординг
-    - Без активной цели → предложение создать
+    - Новый пользователь/без цели → квиз → мини-спринт → онбординг
     - С активной целью → статус + меню
     """
     user = await get_or_create_user(message)
@@ -63,14 +62,10 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
             f"Застрял? Жми *Застрял* — помогу.",
             reply_markup=main_menu_keyboard(),
         )
-    else:
-        # Нет активной цели — предлагаем создать
-        await state.set_state(OnboardingStates.waiting_for_goal)
-        await message.answer(
-            "👋 Привет! Я помогу двигаться к цели маленькими шагами.\n\n"
-            "*Какую цель хочешь достичь?*\n"
-            "Например: выучить Python, запустить блог, похудеть"
-        )
+        return
+
+    # Нет активной цели — запускаем квиз
+    await start_quiz(message, state, user)
 
 
 @router.message(Command("help"))

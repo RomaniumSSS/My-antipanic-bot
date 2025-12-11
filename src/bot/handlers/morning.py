@@ -12,27 +12,28 @@ Legacy планировщик вынесен в `legacy_morning.py`.
 """
 
 import logging
+from datetime import date, timedelta
 
-from aiogram import Router, F
+from aiogram import F, Router
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, Message
 
-from src.bot.states import AntipanicSession
-from src.bot.keyboards import (
-    goal_select_keyboard,
-    tension_keyboard,
-    steps_list_keyboard,
-    deepen_keyboard,
-    main_menu_keyboard,
-)
 from src.bot.callbacks.data import (
+    DeepenAction,
+    DeepenCallback,
     GoalSelectCallback,
     TensionCallback,
-    DeepenCallback,
-    DeepenAction,
 )
-from src.database.models import User, Goal
+from src.bot.keyboards import (
+    deepen_keyboard,
+    goal_select_keyboard,
+    main_menu_keyboard,
+    steps_list_keyboard,
+    tension_keyboard,
+)
+from src.bot.states import AntipanicSession
+from src.database.models import Goal, Stage, User
 from src.services import session as session_service
 
 logger = logging.getLogger(__name__)
@@ -53,6 +54,41 @@ async def _ask_tension(target: Message | CallbackQuery, state: FSMContext, goal:
         await target.answer(text, reply_markup=tension_keyboard())
 
 
+async def _get_or_create_onboarding_sprint_goal(user: User) -> Goal:
+    goal = await Goal.get_or_none(user=user, status="onboarding")
+    if goal:
+        return goal
+
+    deadline = date.today() + timedelta(days=3)
+    goal = await Goal.create(
+        user=user,
+        title="Мини-спринт после квиза",
+        description="Временная цель для разморозки до полноценной цели",
+        start_date=date.today(),
+        deadline=deadline,
+        status="onboarding",
+    )
+    await Stage.create(
+        goal=goal,
+        title="Мини-спринт",
+        order=1,
+        start_date=date.today(),
+        end_date=deadline,
+        status="active",
+    )
+    return goal
+
+
+async def start_onboarding_sprint_flow(
+    target: Message | CallbackQuery, state: FSMContext, user: User
+) -> None:
+    """Запуск мини-спринта без выбора цели (после квиза)."""
+    goal = await _get_or_create_onboarding_sprint_goal(user)
+    await state.clear()
+    await state.update_data(onboarding_sprint=True, goal_id=goal.id)
+    await _ask_tension(target=target, state=state, goal=goal)
+
+
 @router.message(F.text.casefold().in_(("утро", "/morning")))
 async def morning_from_menu(message: Message, state: FSMContext) -> None:
     """Запуск /morning из меню."""
@@ -70,15 +106,25 @@ async def cmd_morning(message: Message, state: FSMContext) -> None:
         await message.answer("Сначала напиши /start чтобы создать цель.")
         return
 
+    stored = await state.get_data()
+    onboarding_sprint = stored.get("onboarding_sprint")
+    await state.clear()
+    if onboarding_sprint:
+        await state.update_data(onboarding_sprint=True)
+
     goals = await Goal.filter(user=user, status="active").order_by("id")
+    if onboarding_sprint:
+        goal = await _get_or_create_onboarding_sprint_goal(user)
+        await state.update_data(goal_id=goal.id)
+        await _ask_tension(message, state, goal)
+        return
+
     if not goals:
         await message.answer(
             "У тебя нет активной цели.\nНапиши /start чтобы создать.",
             reply_markup=main_menu_keyboard(),
         )
         return
-
-    await state.clear()
 
     if len(goals) == 1:
         goal = goals[0]
@@ -180,8 +226,7 @@ async def handle_tension_after(
     await state.set_state(AntipanicSession.offered_deepen)
 
     await callback.message.edit_text(
-        f"{support}\n\n"
-        "Готов попробовать ещё один шаг на 15–30 минут или завершаем?",
+        f"{support}\n\n" "Готов попробовать ещё один шаг на 15–30 минут или завершаем?",
         reply_markup=deepen_keyboard(),
     )
 
@@ -235,5 +280,3 @@ async def handle_deepen_choice(
         "Отметь, когда сделаешь — или напиши /evening позже для итогов.",
         reply_markup=steps_list_keyboard([deep_step.id]),
     )
-
-

@@ -5,28 +5,33 @@
 НЕ используй raw строки для callback_data!
 """
 
+from aiogram.types import InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 
 from src.bot.callbacks.data import (
-    EnergyCallback,
-    SimpleEnergyCallback,
-    EnergyLevel,
-    ConfirmCallback,
     BlockerCallback,
-    RatingCallback,
-    StepCallback,
-    MicrohitFeedbackCallback,
-    QuickStepCallback,
-    GoalSelectCallback,
-    TensionCallback,
-    DeepenCallback,
-    DeepenAction,
     BlockerType,
     ConfirmAction,
-    StepAction,
+    ConfirmCallback,
+    DeepenAction,
+    DeepenCallback,
+    EnergyCallback,
+    EnergyLevel,
+    GoalSelectCallback,
     MicrohitFeedbackAction,
+    MicrohitFeedbackCallback,
+    PaywallAction,
+    PaywallCallback,
     QuickStepAction,
+    QuickStepCallback,
+    QuizAction,
+    QuizAnswerCallback,
+    QuizResultActionCallback,
+    RatingCallback,
+    SimpleEnergyCallback,
+    StepAction,
+    StepCallback,
+    TensionCallback,
 )
 
 
@@ -249,6 +254,50 @@ def deepen_keyboard() -> InlineKeyboardMarkup:
     builder.button(
         text="✅ Хватит, сохранить прогресс",
         callback_data=DeepenCallback(action=DeepenAction.finish),
+    )
+    builder.adjust(1, 1)
+    return builder.as_markup()
+
+
+def quiz_question_keyboard(
+    question_id: int, options: list[tuple[str, int]]
+) -> InlineKeyboardMarkup:
+    """Клавиатура с вариантами ответа для квиза."""
+    builder = InlineKeyboardBuilder()
+    for idx, (text, _score) in enumerate(options):
+        builder.button(
+            text=text,
+            callback_data=QuizAnswerCallback(question=question_id, option=idx),
+        )
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def quiz_result_keyboard() -> InlineKeyboardMarkup:
+    """Кнопки на финале квиза."""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="Поехали",
+        callback_data=QuizResultActionCallback(action=QuizAction.proceed),
+    )
+    builder.button(
+        text="Не сейчас",
+        callback_data=QuizResultActionCallback(action=QuizAction.later),
+    )
+    builder.adjust(1, 1)
+    return builder.as_markup()
+
+
+def paywall_keyboard() -> InlineKeyboardMarkup:
+    """Кнопки пейволла после мини-спринта."""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="Да, хочу 3-дневную миссию",
+        callback_data=PaywallCallback(action=PaywallAction.accept),
+    )
+    builder.button(
+        text="Нет, хватит",
+        callback_data=PaywallCallback(action=PaywallAction.decline),
     )
     builder.adjust(1, 1)
     return builder.as_markup()

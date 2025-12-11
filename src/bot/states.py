@@ -19,6 +19,13 @@ class OnboardingStates(StatesGroup):
     confirming_stages = State()  # Подтверждение этапов от LLM
 
 
+class QuizStates(StatesGroup):
+    """Квиз перед онбордингом."""
+
+    answering = State()  # Проход вопросов
+    finished = State()  # Финальный экран
+
+
 class MorningStates(StatesGroup):
     """Утренний ритуал."""
 
@@ -54,6 +61,12 @@ class EveningStates(StatesGroup):
     marking_done = State()  # Отметка что сделано
     waiting_for_skip_reason = State()  # Причина пропуска
     rating_day = State()  # Оценка дня
+
+
+class OnboardingSprintStates(StatesGroup):
+    """Мини-спринт после квиза."""
+
+    paywall = State()  # Пейволл после микрошага
 
 
 class GoalStates(StatesGroup):

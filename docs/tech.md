@@ -16,7 +16,7 @@ src/
 ├── main.py              # Точка входа
 ├── config.py            # Настройки из .env
 ├── bot/
-│   ├── handlers/        # Роутеры (start, morning, stuck, evening)
+│   ├── handlers/        # Роутеры (start, quiz, morning, stuck, evening)
 │   ├── callbacks/       # CallbackData фабрики
 │   │   └── data.py      # EnergyCallback, BlockerCallback, etc.
 │   ├── middlewares/     # Middleware (access, etc.)
@@ -35,13 +35,15 @@ src/
 - **Goal**: цель с дедлайном  
 - **Stage**: этап цели (2-4 на цель)  
 - **Step**: шаг с difficulty (easy/medium/hard) и estimated_minutes  
-- **DailyLog**: дневник дня (энергия, состояние, что сделано)
+- **DailyLog**: дневник дня (энергия, состояние, что сделано)  
+- **QuizResult**: ответы квиза, dependency_score, AI-диагноз, completed_at
 
 ## Бот-флоу (FSM)
-1. **Onboarding**: goal → deadline → confirm stages  
-2. **Morning**: energy (1-10) → mood (text) → show steps  
-3. **Stuck**: blocker type → details → microhit  
-4. **Evening**: mark done → skip reasons → rating
+1. **Quiz**: 10 вопросов → dependency_score → AI-диагноз → мини-спринт + пейволл  
+2. **Onboarding**: goal → deadline → confirm stages  
+3. **Morning**: energy (1-10) → mood (text) → show steps  
+4. **Stuck**: blocker type → details → microhit  
+5. **Evening**: mark done → skip reasons → rating
 
 ## Интеграции
 - Telegram Bot API через aiogram.  

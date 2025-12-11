@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import logging
 import random
+from collections.abc import Iterable
 from datetime import date
-from typing import Iterable, Optional
 
 from src.database.models import DailyLog, Goal, Stage, Step, User
 from src.services.ai import ai_service
@@ -31,7 +31,7 @@ BODY_ACTIONS: list[str] = [
 ]
 
 
-def _energy_from_tension(tension: Optional[int]) -> int:
+def _energy_from_tension(tension: int | None) -> int:
     """
     Rough mapping to keep energy_level populated for stats.
     Lower tension -> a bit higher energy surrogate.
@@ -41,7 +41,7 @@ def _energy_from_tension(tension: Optional[int]) -> int:
     return max(2, min(8, 10 - tension // 2))
 
 
-async def ensure_active_stage(goal: Goal) -> Optional[Stage]:
+async def ensure_active_stage(goal: Goal) -> Stage | None:
     """
     Return current active stage for a goal.
     If active is completed (>=100) mark it completed and activate next pending.
@@ -55,9 +55,7 @@ async def ensure_active_stage(goal: Goal) -> Optional[Stage]:
 
     if not current:
         current = (
-            await Stage.filter(goal=goal, status="pending")
-            .order_by("order")
-            .first()
+            await Stage.filter(goal=goal, status="pending").order_by("order").first()
         )
         if current:
             current.status = "active"
@@ -76,8 +74,8 @@ async def log_antipanic_action(
     *,
     user: User,
     step: Step,
-    energy_hint: Optional[int] = None,
-    mood_hint: Optional[str] = None,
+    energy_hint: int | None = None,
+    mood_hint: str | None = None,
     completed: bool = False,
 ) -> None:
     """
@@ -125,8 +123,8 @@ async def _create_step(
     difficulty: str,
     xp_reward: int,
     user: User,
-    energy_hint: Optional[int],
-    mood_hint: Optional[str],
+    energy_hint: int | None,
+    mood_hint: str | None,
 ) -> Step:
     step = await Step.create(
         stage=stage,
@@ -150,7 +148,7 @@ async def get_body_micro_action(user: User) -> str:
 
 
 async def create_body_step(
-    *, user: User, goal: Goal, action_text: str, tension: Optional[int]
+    *, user: User, goal: Goal, action_text: str, tension: int | None
 ) -> Step:
     """Create a logged body-oriented micro-step attached to the active stage."""
     stage = await ensure_active_stage(goal)
@@ -171,7 +169,7 @@ async def create_body_step(
 
 
 async def get_task_micro_action(
-    *, user: User, goal: Goal, tension: Optional[int] = None, max_minutes: int = 5
+    *, user: User, goal: Goal, tension: int | None = None, max_minutes: int = 5
 ) -> Step:
     """
     Generate or select a short task step tied to the current stage.
@@ -228,9 +226,7 @@ async def get_task_micro_action(
     )
 
 
-def support_message(
-    *, before: Optional[int] = None, after: Optional[int] = None
-) -> str:
+def support_message(*, before: int | None = None, after: int | None = None) -> str:
     """Short supportive phrase after action."""
     if before is not None and after is not None:
         delta = before - after
@@ -249,5 +245,3 @@ def format_steps_preview(steps: Iterable[Step]) -> str:
         icon = "✅" if s.status == "completed" else "⬜"
         lines.append(f"{icon} {s.title}")
     return "\n".join(lines)
-
-

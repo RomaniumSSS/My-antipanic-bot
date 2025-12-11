@@ -18,8 +18,8 @@ Callback Data Factories для Antipanic Bot.
 """
 
 from enum import Enum
-from aiogram.filters.callback_data import CallbackData
 
+from aiogram.filters.callback_data import CallbackData
 
 # === Enums ===
 
@@ -77,6 +77,20 @@ class DeepenAction(str, Enum):
 
     more = "more"  # Хочу ещё 15-30 минут
     finish = "finish"  # Хватит на сегодня
+
+
+class QuizAction(str, Enum):
+    """Действия после квиза."""
+
+    proceed = "proceed"  # Поехали в мини-спринт
+    later = "later"  # Не сейчас
+
+
+class PaywallAction(str, Enum):
+    """Действия на пейволле после мини-спринта."""
+
+    accept = "accept"
+    decline = "decline"
 
 
 # === Callback Data Classes ===
@@ -198,3 +212,22 @@ class DeepenCallback(CallbackData, prefix="deepen"):
     """Решение углубиться после анти-паралич шага."""
 
     action: DeepenAction
+
+
+class QuizAnswerCallback(CallbackData, prefix="quiz"):
+    """Ответ на вопрос квиза."""
+
+    question: int
+    option: int
+
+
+class QuizResultActionCallback(CallbackData, prefix="quizact"):
+    """Действие на итоговом экране квиза."""
+
+    action: QuizAction
+
+
+class PaywallCallback(CallbackData, prefix="paywall"):
+    """Действие на пейволле после микрошага."""
+
+    action: PaywallAction

@@ -11,10 +11,10 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from tortoise import Tortoise
 
-from src.config import config
-from src.database.config import TORTOISE_ORM
 from src.bot.handlers import register_routers
 from src.bot.middlewares.access import AccessMiddleware
+from src.config import config
+from src.database.config import TORTOISE_ORM
 from src.services import scheduler
 
 # Настройка логов

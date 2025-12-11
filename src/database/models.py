@@ -15,8 +15,8 @@ from tortoise import fields, models
 class User(models.Model):
     """Пользователь бота."""
 
-    id = fields.IntField(pk=True)
-    telegram_id = fields.BigIntField(unique=True, index=True)
+    id = fields.IntField(primary_key=True)
+    telegram_id = fields.BigIntField(unique=True, db_index=True)
     username = fields.CharField(max_length=255, null=True)
     first_name = fields.CharField(max_length=255, null=True)
 
@@ -35,6 +35,7 @@ class User(models.Model):
 
     goals: fields.ReverseRelation["Goal"]
     daily_logs: fields.ReverseRelation["DailyLog"]
+    quiz_results: fields.ReverseRelation["QuizResult"]
 
     class Meta:
         table = "users"
@@ -43,7 +44,7 @@ class User(models.Model):
 class Goal(models.Model):
     """Цель пользователя."""
 
-    id = fields.IntField(pk=True)
+    id = fields.IntField(primary_key=True)
     user = fields.ForeignKeyField(
         "models.User", related_name="goals", on_delete=fields.CASCADE
     )
@@ -69,7 +70,7 @@ class Goal(models.Model):
 class Stage(models.Model):
     """Этап цели (2-4 этапа на цель)."""
 
-    id = fields.IntField(pk=True)
+    id = fields.IntField(primary_key=True)
     goal = fields.ForeignKeyField(
         "models.Goal", related_name="stages", on_delete=fields.CASCADE
     )
@@ -99,7 +100,7 @@ class Step(models.Model):
     Привязан к этапу и имеет градацию сложности.
     """
 
-    id = fields.IntField(pk=True)
+    id = fields.IntField(primary_key=True)
     stage = fields.ForeignKeyField(
         "models.Stage", related_name="steps", on_delete=fields.CASCADE
     )
@@ -132,7 +133,7 @@ class DailyLog(models.Model):
     Хранит состояние пользователя и результаты дня.
     """
 
-    id = fields.IntField(pk=True)
+    id = fields.IntField(primary_key=True)
     user = fields.ForeignKeyField(
         "models.User", related_name="daily_logs", on_delete=fields.CASCADE
     )
@@ -163,3 +164,19 @@ class DailyLog(models.Model):
     class Meta:
         table = "daily_logs"
         unique_together = (("user", "date"),)
+
+
+class QuizResult(models.Model):
+    """Результат квиза перед онбордингом."""
+
+    id = fields.IntField(primary_key=True)
+    user = fields.ForeignKeyField(
+        "models.User", related_name="quiz_results", on_delete=fields.CASCADE
+    )
+    answers = fields.JSONField(default=[])
+    dependency_score = fields.FloatField()
+    diagnosis = fields.TextField(null=True)
+    completed_at = fields.DatetimeField(auto_now_add=True)
+
+    class Meta:
+        table = "quiz_results"

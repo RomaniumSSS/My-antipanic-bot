@@ -9,7 +9,6 @@ AICODE-NOTE: Используем in-memory scheduler для MVP.
 """
 
 import logging
-from typing import Optional
 
 from aiogram import Bot
 from apscheduler import AsyncScheduler, ConflictPolicy
@@ -21,7 +20,7 @@ logger = logging.getLogger(__name__)
 scheduler = AsyncScheduler()
 
 # Ссылка на Bot для отправки сообщений из задач
-_bot: Optional[Bot] = None
+_bot: Bot | None = None
 
 
 def set_bot(bot: Bot) -> None:
@@ -136,8 +135,8 @@ async def setup_user_reminders(
 
 async def update_user_reminders(
     user_id: int,
-    morning_time: Optional[str] = None,
-    evening_time: Optional[str] = None,
+    morning_time: str | None = None,
+    evening_time: str | None = None,
 ) -> None:
     """Обновить время напоминаний (только указанные)."""
     if morning_time:

@@ -4,10 +4,11 @@
 """
 
 import asyncio
+
 from tortoise import Tortoise
 
-from src.database.models import Stage, Step
 from src.database.config import TORTOISE_ORM
+from src.database.models import Stage, Step
 
 
 async def recalculate_all_stages():
@@ -36,14 +37,18 @@ async def recalculate_all_stages():
         stage.progress = new_progress
 
         # Проверяем статус
-        finished_count = sum(1 for s in all_steps if s.status in ("completed", "skipped"))
+        finished_count = sum(
+            1 for s in all_steps if s.status in ("completed", "skipped")
+        )
         if finished_count == total_count and completed_count > 0:
             stage.status = "completed"
         elif stage.status == "pending" and completed_count > 0:
             stage.status = "active"
 
         await stage.save()
-        print(f"  Stage {stage.id} '{stage.title}': {old_progress}% -> {new_progress}% ({completed_count}/{total_count} completed)")
+        print(
+            f"  Stage {stage.id} '{stage.title}': {old_progress}% -> {new_progress}% ({completed_count}/{total_count} completed)"
+        )
 
     await Tortoise.close_connections()
     print("\nDone!")
@@ -51,4 +56,3 @@ async def recalculate_all_stages():
 
 if __name__ == "__main__":
     asyncio.run(recalculate_all_stages())
-

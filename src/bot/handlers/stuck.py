@@ -8,24 +8,29 @@ Flow:
 """
 
 import logging
+from datetime import date
 
-from aiogram import Router, F
-from aiogram.filters import Command
-from aiogram.types import CallbackQuery, Message
-from aiogram.fsm.context import FSMContext
+from aiogram import F, Router
 from aiogram.dispatcher.event.bases import SkipHandler
+from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, Message
 
 from src.bot.callbacks.data import (
     BlockerCallback,
     BlockerType,
-    MicrohitFeedbackCallback,
     MicrohitFeedbackAction,
+    MicrohitFeedbackCallback,
+)
+from src.bot.keyboards import (
+    blocker_keyboard,
+    main_menu_keyboard,
+    microhit_feedback_keyboard,
+    steps_list_keyboard,
 )
 from src.bot.states import StuckStates
-from src.bot.keyboards import steps_list_keyboard, microhit_feedback_keyboard, blocker_keyboard, main_menu_keyboard
-from src.database.models import User, Goal, Stage, DailyLog, Step
+from src.database.models import DailyLog, Goal, Stage, Step, User
 from src.services.ai import ai_service
-from datetime import date
 
 logger = logging.getLogger(__name__)
 
@@ -73,9 +78,7 @@ async def cmd_stuck(message: Message, state: FSMContext) -> None:
 
     if daily_log and daily_log.assigned_step_ids:
         # Берём первый pending шаг
-        steps = await Step.filter(
-            id__in=daily_log.assigned_step_ids, status="pending"
-        )
+        steps = await Step.filter(id__in=daily_log.assigned_step_ids, status="pending")
         if steps:
             first_step = steps[0]
             step_title = first_step.title
@@ -244,6 +247,12 @@ async def microhit_feedback(
         await callback.message.edit_text(
             "🔥 Отлично! Действуй. Напиши, если нужна будет ещё подсказка."
         )
+        await callback.message.answer(
+            "Когда сделаешь — отмечай в /status или жми /morning"
+        )
+        await callback.message.answer(
+            "Главное меню:", reply_markup=main_menu_keyboard()
+        )
         return
 
     if action == MicrohitFeedbackAction.other:
@@ -301,6 +310,15 @@ async def microhit_feedback(
 async def microhit_feedback_details(message: Message, state: FSMContext) -> None:
     """Детали после кнопки 'Другое' → новый микро-удар."""
     await _process_microhit_feedback_details(message, state)
+
+
+@router.message(StuckStates.waiting_for_blocker)
+async def stuck_free_text_fallback(message: Message, state: FSMContext) -> None:
+    """Показываем меню, если прислали текст вместо выбора блокера."""
+    await message.answer(
+        "Если нужна помощь — выбери кнопку или вернись в меню.",
+        reply_markup=main_menu_keyboard(),
+    )
 
 
 @router.message()
