@@ -61,6 +61,7 @@ async def update_stage_progress(step: Step) -> None:
     try:
         # Загружаем этап шага через stage_id (надёжнее чем await step.stage)
         stage = await Stage.get(id=step.stage_id)
+        goal = await Goal.get(id=stage.goal_id)
 
         # Получаем все шаги этапа
         all_steps = await Step.filter(stage_id=stage.id)
@@ -82,7 +83,10 @@ async def update_stage_progress(step: Step) -> None:
             1 for s in all_steps if s.status in ("completed", "skipped")
         )
         if finished_count == total_count and completed_count > 0:
-            stage.status = "completed"
+            if goal.status != "onboarding":
+                stage.status = "completed"
+            else:
+                stage.status = "active"
         elif stage.status == "pending" and completed_count > 0:
             stage.status = "active"
 

@@ -49,9 +49,12 @@ async def ensure_active_stage(goal: Goal) -> Stage | None:
     current = await Stage.filter(goal=goal, status="active").first()
 
     if current and current.progress >= 100:
-        current.status = "completed"
-        await current.save()
-        current = None
+        # Для онбординговых целей даём возможность добавлять ещё шаги,
+        # не завершая этап после первого же микрошага.
+        if goal.status != "onboarding":
+            current.status = "completed"
+            await current.save()
+            current = None
 
     if not current:
         current = (
@@ -61,10 +64,10 @@ async def ensure_active_stage(goal: Goal) -> Stage | None:
             current.status = "active"
             await current.save()
         else:
-            # All stages done — mark goal as completed
+            # All stages done — mark goal as completed (кроме онбординговой миссии)
             total = await Stage.filter(goal=goal).count()
             completed = await Stage.filter(goal=goal, status="completed").count()
-            if total and completed == total:
+            if total and completed == total and goal.status != "onboarding":
                 goal.status = "completed"
                 await goal.save()
     return current
