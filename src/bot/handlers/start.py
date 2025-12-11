@@ -8,7 +8,7 @@ from aiogram.types import Message
 from src.bot.handlers.quiz import start_quiz
 from src.bot.keyboards import main_menu_keyboard
 from src.bot.states import OnboardingStates
-from src.database.models import Goal, User
+from src.database.models import Goal, QuizResult, User
 
 router = Router()
 
@@ -75,6 +75,22 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
         await state.set_state(OnboardingStates.waiting_for_goal)
         await message.answer(
             "🔥 Давай закончим онбординг.\n\n"
+            "*Какую цель хочешь достичь?*\n"
+            "Например: выучить Python, запустить блог, похудеть на 5 кг"
+        )
+        return
+
+    # Пользователь уже проходил квиз или вернулся после прерванного онбординга —
+    # сразу зовём ввод цели, без повторного квиза.
+    has_quiz_history = await QuizResult.filter(user=user).exists()
+    stored = await state.get_data()
+    finished_quiz_in_state = stored.get("onboarding_quiz_score") is not None
+
+    if has_quiz_history or finished_quiz_in_state:
+        await state.clear()
+        await state.set_state(OnboardingStates.waiting_for_goal)
+        await message.answer(
+            "🔥 Давай продолжим и оформим цель.\n\n"
             "*Какую цель хочешь достичь?*\n"
             "Например: выучить Python, запустить блог, похудеть на 5 кг"
         )

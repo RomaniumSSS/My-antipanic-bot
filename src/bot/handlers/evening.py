@@ -57,6 +57,7 @@ async def cmd_evening(message: Message, state: FSMContext) -> None:
     daily_log = await DailyLog.get_or_none(user=user, date=today)
 
     if not daily_log or not daily_log.assigned_step_ids:
+        await state.clear()
         await message.answer(
             "Сегодня ещё не было старта дня. "
             "Сначала сделай короткий утренний чек-ин через кнопку «Утро».",

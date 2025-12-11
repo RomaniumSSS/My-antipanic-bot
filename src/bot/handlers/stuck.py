@@ -341,19 +341,28 @@ async def microhit_feedback_details_fallback(
     data = await state.get_data()
     has_feedback_context = data.get("feedback_blocker")
     current_state = await state.get_state()
+    stuck_states = {
+        StuckStates.waiting_for_blocker.state,
+        StuckStates.waiting_for_details.state,
+        StuckStates.waiting_for_feedback_details.state,
+    }
 
-    if not has_feedback_context:
-        raise SkipHandler()  # Пропускаем к следующим хендлерам
+    if has_feedback_context:
+        if current_state != StuckStates.waiting_for_feedback_details.state:
+            # Восстанавливаем ожидаемое состояние и продолжаем обработку
+            await state.set_state(StuckStates.waiting_for_feedback_details)
+        await _process_microhit_feedback_details(message, state)
+        return
 
-    if (
-        current_state
-        and current_state != StuckStates.waiting_for_feedback_details.state
-    ):
-        raise SkipHandler()  # Пропускаем к следующим хендлерам
+    if current_state in stuck_states:
+        await message.answer(
+            "Я всё ещё жду, что мешает двигаться. Выбери блокер кнопкой "
+            "или вернись в меню.",
+            reply_markup=main_menu_keyboard(),
+        )
+        return
 
-    # Восстанавливаем ожидаемое состояние и продолжаем обработку
-    await state.set_state(StuckStates.waiting_for_feedback_details)
-    await _process_microhit_feedback_details(message, state)
+    raise SkipHandler()  # Пропускаем к следующим хендлерам
 
 
 async def _process_microhit_feedback_details(
