@@ -39,6 +39,7 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
     Точка входа:
     - Новый пользователь/без цели → квиз → мини-спринт → онбординг
     - С активной целью → статус + меню
+    - С onboarding целью (незавершенный квиз) → предлагаем завершить или начать заново
     """
     user = await get_or_create_user(message)
 
@@ -63,6 +64,12 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
             reply_markup=main_menu_keyboard(),
         )
         return
+
+    # Проверяем незавершенный onboarding goal (защита от цикла)
+    onboarding_goal = await Goal.filter(user=user, status="onboarding").first()
+    if onboarding_goal:
+        # Удаляем старый onboarding goal и начинаем заново
+        await onboarding_goal.delete()
 
     # Нет активной цели — запускаем квиз
     await start_quiz(message, state, user)

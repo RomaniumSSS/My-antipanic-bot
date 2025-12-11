@@ -413,21 +413,47 @@ async def handle_paywall_choice(
     """Обработка пейволла после мини-спринта."""
     await callback.answer()
 
-    await state.clear()
+    if not callback.from_user:
+        return
+
+    user = await User.get_or_none(telegram_id=callback.from_user.id)
+    if not user:
+        await state.clear()
+        await callback.message.edit_text("Ошибка: пользователь не найден. Напиши /start")
+        return
 
     if callback_data.action == PaywallAction.accept:
+        # Удаляем onboarding goal - будем создавать настоящую цель
+        onboarding_goal = await Goal.get_or_none(user=user, status="onboarding")
+        if onboarding_goal:
+            await onboarding_goal.delete()
+
+        # Переходим к созданию реальной цели
         await state.set_state(OnboardingStates.waiting_for_goal)
         await callback.message.edit_text(
-            "🔥 Поехали в 3-дневную миссию.\n\n"
-            "👋 Я помогу двигаться к цели маленькими шагами.\n\n"
+            "🔥 Отлично! Запускаю 3-дневную миссию.\n\n"
+            "Я буду помогать тебе каждый день двигаться маленькими шагами. "
+            "Без паралича, без прокрастинации.\n\n"
             "*Какую цель хочешь достичь?*\n"
-            "Например: выучить Python, запустить блог, похудеть",
+            "Например: выучить Python, запустить блог, похудеть на 5 кг"
+        )
+        await callback.message.answer(
+            "Главное меню:",
             reply_markup=main_menu_keyboard(),
         )
         return
 
+    # Пользователь отказался от миссии - удаляем onboarding goal
+    onboarding_goal = await Goal.get_or_none(user=user, status="onboarding")
+    if onboarding_goal:
+        await onboarding_goal.delete()
+
+    await state.clear()
     await callback.message.edit_text(
-        "Окей, без проблем. Когда захочешь начать — жми /start",
+        "Окей, без проблем. Когда захочешь начать — жми /start"
+    )
+    await callback.message.answer(
+        "Главное меню:",
         reply_markup=main_menu_keyboard(),
     )
 
