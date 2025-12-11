@@ -7,6 +7,7 @@ from aiogram.types import Message
 
 from src.bot.handlers.quiz import start_quiz
 from src.bot.keyboards import main_menu_keyboard
+from src.bot.states import OnboardingStates
 from src.database.models import Goal, User
 
 router = Router()
@@ -68,8 +69,16 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
     # Проверяем незавершенный onboarding goal (защита от цикла)
     onboarding_goal = await Goal.filter(user=user, status="onboarding").first()
     if onboarding_goal:
-        # Удаляем старый onboarding goal и начинаем заново
+        # Стираем временный onboarding goal и сразу переводим в ввод цели,
+        # чтобы пользователь не застревал в повторном квизе.
         await onboarding_goal.delete()
+        await state.set_state(OnboardingStates.waiting_for_goal)
+        await message.answer(
+            "🔥 Давай закончим онбординг.\n\n"
+            "*Какую цель хочешь достичь?*\n"
+            "Например: выучить Python, запустить блог, похудеть на 5 кг"
+        )
+        return
 
     # Нет активной цели — запускаем квиз
     await start_quiz(message, state, user)

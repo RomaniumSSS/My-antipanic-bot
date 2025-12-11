@@ -193,12 +193,16 @@ async def confirm_stages(callback: CallbackQuery, state: FSMContext) -> None:
 
     await state.clear()
 
+    # edit_text не принимает ReplyKeyboardMarkup, поэтому сначала редактируем текст,
+    # а потом шлём отдельное сообщение с клавиатурой.
     await callback.message.edit_text(
         f"✅ *Цель создана!*\n\n"
         f"🎯 {goal_text}\n"
         f"📅 До {deadline.strftime('%d.%m.%Y')}\n\n"
-        "Жми *Утро* — спланируем первый день.",
-        reply_markup=main_menu_keyboard(),
+        "Жми *Утро* — спланируем первый день."
+    )
+    await callback.message.answer(
+        "Главное меню:", reply_markup=main_menu_keyboard()
     )
 
     logger.info(f"Goal created for user {user.telegram_id}: {goal_text}")

@@ -330,6 +330,14 @@ async def microhit_feedback_details_fallback(
     но в данных FSM остался контекст feedback_* — продолжаем диалог,
     чтобы пользователь не зависал без ответа.
     """
+    text = (message.text or "").strip().lower()
+    # Пропускаем стандартные команды, чтобы не блокировать вечер/утро/старт,
+    # даже если висит контекст stuck-диалога.
+    if text.startswith("/"):
+        raise SkipHandler()
+    if text in {"вечер", "evening", "утро", "morning", "старт", "/start", "start"}:
+        raise SkipHandler()
+
     data = await state.get_data()
     has_feedback_context = data.get("feedback_blocker")
     current_state = await state.get_state()

@@ -10,6 +10,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from aiogram import BaseMiddleware
+from aiogram.dispatcher.event.bases import SkipHandler
 from aiogram.types import CallbackQuery, Message, TelegramObject
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,9 @@ class ErrorHandlingMiddleware(BaseMiddleware):
     ) -> Any:
         try:
             return await handler(event, data)
+        except SkipHandler:
+            # Пропускаем без логов и ответов — это штатный сигнал роутинга.
+            raise
         except Exception as e:
             # Логируем полную ошибку с трейсбеком
             logger.exception(f"Error handling {type(event).__name__}: {e}")
