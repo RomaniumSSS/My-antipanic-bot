@@ -46,7 +46,17 @@ async def ensure_active_stage(goal: Goal) -> Stage | None:
     Return current active stage for a goal.
     If active is completed (>=100) mark it completed and activate next pending.
     """
-    current = await Stage.filter(goal=goal, status="active").first()
+    active_stages = (
+        await Stage.filter(goal=goal, status="active").order_by("-order", "-id").all()
+    )
+    current = active_stages[0] if active_stages else None
+
+    if len(active_stages) > 1:
+        logger.warning(
+            "Goal %s has multiple active stages, keeping the latest", goal.id
+        )
+        stale_ids = [stage.id for stage in active_stages[1:]]
+        await Stage.filter(id__in=stale_ids).update(status="pending")
 
     if current and current.progress >= 100:
         # Для онбординговых целей даём возможность добавлять ещё шаги,
@@ -64,12 +74,27 @@ async def ensure_active_stage(goal: Goal) -> Stage | None:
             current.status = "active"
             await current.save()
         else:
-            # All stages done — mark goal as completed (кроме онбординговой миссии)
             total = await Stage.filter(goal=goal).count()
-            completed = await Stage.filter(goal=goal, status="completed").count()
-            if total and completed == total and goal.status != "onboarding":
-                goal.status = "completed"
-                await goal.save()
+            if total == 0:
+                start_date = goal.start_date or date.today()
+                end_date = goal.deadline or start_date
+                logger.warning(
+                    "Goal %s has no stages, creating default active stage", goal.id
+                )
+                current = await Stage.create(
+                    goal=goal,
+                    title="Стартовый этап",
+                    order=1,
+                    start_date=start_date,
+                    end_date=end_date,
+                    progress=0,
+                    status="active",
+                )
+            else:
+                completed = await Stage.filter(goal=goal, status="completed").count()
+                if total and completed == total and goal.status != "onboarding":
+                    goal.status = "completed"
+                    await goal.save()
     return current
 
 

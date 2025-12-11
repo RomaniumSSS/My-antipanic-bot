@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+import logging
 
 import pytest
 
@@ -60,6 +61,103 @@ async def _goal_with_stage(
         status=status,
     )
     return goal, stage
+
+
+@pytest.mark.asyncio
+async def test_ensure_active_stage_when_no_stage_creates_default(
+    db: None, caplog: pytest.LogCaptureFixture
+) -> None:
+    """If goal lost all stages, ensure_active_stage should create a fallback."""
+    user = await User.create(telegram_id=901)
+    goal = await Goal.create(
+        user=user,
+        title="Recover",
+        deadline=date.today() + timedelta(days=5),
+        start_date=date.today(),
+        status="active",
+    )
+
+    with caplog.at_level(logging.WARNING):
+        current = await session_service.ensure_active_stage(goal)
+
+    assert current is not None
+    assert current.status == "active"
+    assert current.order == 1
+    assert current.goal_id == goal.id
+    assert "has no stages" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_ensure_active_stage_when_missing_active_promotes_pending(
+    db: None,
+) -> None:
+    """If sprint has no active stage, first pending should be activated."""
+    user = await User.create(telegram_id=902)
+    goal = await Goal.create(
+        user=user,
+        title="Pending only",
+        deadline=date.today() + timedelta(days=10),
+        start_date=date.today(),
+        status="active",
+    )
+    stage = await Stage.create(
+        goal=goal,
+        title="Stage pending",
+        order=1,
+        start_date=date.today(),
+        end_date=date.today() + timedelta(days=2),
+        status="pending",
+        progress=0,
+    )
+
+    current = await session_service.ensure_active_stage(goal)
+
+    assert current is not None
+    assert current.id == stage.id
+    await stage.refresh_from_db()
+    assert stage.status == "active"
+
+
+@pytest.mark.asyncio
+async def test_ensure_active_stage_when_multiple_stages_picks_latest_and_logs_warning(
+    db: None, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Multiple active stages should be healed by keeping the latest one."""
+    user = await User.create(telegram_id=903)
+    goal = await Goal.create(
+        user=user,
+        title="Conflict goal",
+        deadline=date.today() + timedelta(days=7),
+        start_date=date.today(),
+        status="active",
+    )
+    older = await Stage.create(
+        goal=goal,
+        title="Old active",
+        order=1,
+        start_date=date.today(),
+        end_date=date.today() + timedelta(days=3),
+        status="active",
+        progress=10,
+    )
+    newer = await Stage.create(
+        goal=goal,
+        title="New active",
+        order=2,
+        start_date=date.today(),
+        end_date=date.today() + timedelta(days=4),
+        status="active",
+        progress=5,
+    )
+
+    with caplog.at_level(logging.WARNING):
+        current = await session_service.ensure_active_stage(goal)
+
+    assert current is not None
+    assert current.id == newer.id
+    await older.refresh_from_db()
+    assert older.status == "pending"
+    assert "multiple active stages" in caplog.text
 
 
 @pytest.mark.asyncio
