@@ -4,20 +4,24 @@ Scheduler Service — планировщик напоминаний.
 Использует APScheduler 4.x (AsyncScheduler).
 Напоминания: утреннее (/morning) и вечернее (/evening).
 
-AICODE-NOTE: Используем in-memory scheduler для MVP.
-Для production с персистентностью — добавить SQLAlchemyDataStore.
+Production: использует PostgreSQL для персистентности расписаний.
+Development: использует in-memory scheduler.
 """
 
 import logging
 
 from aiogram import Bot
 from apscheduler import AsyncScheduler, ConflictPolicy
+from apscheduler.datastores.sqlalchemy import SQLAlchemyDataStore
 from apscheduler.triggers.cron import CronTrigger
+from sqlalchemy.ext.asyncio import create_async_engine
+
+from src.config import config
 
 logger = logging.getLogger(__name__)
 
 # Глобальный scheduler instance
-scheduler = AsyncScheduler()
+_scheduler: AsyncScheduler | None = None
 
 # Ссылка на Bot для отправки сообщений из задач
 _bot: Bot | None = None
@@ -34,6 +38,22 @@ def get_bot() -> Bot:
     if _bot is None:
         raise RuntimeError("Bot not initialized in scheduler. Call set_bot() first.")
     return _bot
+
+
+async def _create_scheduler() -> AsyncScheduler:
+    """Создать scheduler с datastore в зависимости от окружения."""
+    if config.ENVIRONMENT == "production":
+        # PostgreSQL datastore для персистентности
+        # Конвертируем postgres:// в postgresql+asyncpg://
+        db_url = config.database_url.replace("postgres://", "postgresql+asyncpg://")
+        engine = create_async_engine(db_url, echo=False)
+        datastore = SQLAlchemyDataStore(engine)
+        logger.info("Using SQLAlchemy datastore for scheduler (PostgreSQL)")
+        return AsyncScheduler(datastore)
+    else:
+        # In-memory для development
+        logger.info("Using in-memory scheduler (development mode)")
+        return AsyncScheduler()
 
 
 # === Задачи напоминаний ===
@@ -106,11 +126,14 @@ async def setup_user_reminders(
         morning_time: Время утреннего напоминания (HH:MM)
         evening_time: Время вечернего напоминания (HH:MM)
     """
+    if _scheduler is None:
+        raise RuntimeError("Scheduler not started")
+
     morning_h, morning_m = map(int, morning_time.split(":"))
     evening_h, evening_m = map(int, evening_time.split(":"))
 
     # Утреннее напоминание
-    await scheduler.add_schedule(
+    await _scheduler.add_schedule(
         send_morning_reminder,
         trigger=CronTrigger(hour=morning_h, minute=morning_m),
         id=f"morning_{user_id}",
@@ -119,7 +142,7 @@ async def setup_user_reminders(
     )
 
     # Вечернее напоминание
-    await scheduler.add_schedule(
+    await _scheduler.add_schedule(
         send_evening_reminder,
         trigger=CronTrigger(hour=evening_h, minute=evening_m),
         id=f"evening_{user_id}",
@@ -139,9 +162,12 @@ async def update_user_reminders(
     evening_time: str | None = None,
 ) -> None:
     """Обновить время напоминаний (только указанные)."""
+    if _scheduler is None:
+        raise RuntimeError("Scheduler not started")
+
     if morning_time:
         morning_h, morning_m = map(int, morning_time.split(":"))
-        await scheduler.add_schedule(
+        await _scheduler.add_schedule(
             send_morning_reminder,
             trigger=CronTrigger(hour=morning_h, minute=morning_m),
             id=f"morning_{user_id}",
@@ -152,7 +178,7 @@ async def update_user_reminders(
 
     if evening_time:
         evening_h, evening_m = map(int, evening_time.split(":"))
-        await scheduler.add_schedule(
+        await _scheduler.add_schedule(
             send_evening_reminder,
             trigger=CronTrigger(hour=evening_h, minute=evening_m),
             id=f"evening_{user_id}",
@@ -164,9 +190,11 @@ async def update_user_reminders(
 
 async def pause_user_reminders(user_id: int) -> None:
     """Приостановить все напоминания пользователя."""
+    if _scheduler is None:
+        return
     try:
-        await scheduler.pause_schedule(f"morning_{user_id}")
-        await scheduler.pause_schedule(f"evening_{user_id}")
+        await _scheduler.pause_schedule(f"morning_{user_id}")
+        await _scheduler.pause_schedule(f"evening_{user_id}")
         logger.info(f"Reminders paused for user {user_id}")
     except Exception as e:
         logger.warning(f"Could not pause reminders for {user_id}: {e}")
@@ -174,9 +202,11 @@ async def pause_user_reminders(user_id: int) -> None:
 
 async def resume_user_reminders(user_id: int) -> None:
     """Возобновить напоминания пользователя."""
+    if _scheduler is None:
+        return
     try:
-        await scheduler.unpause_schedule(f"morning_{user_id}")
-        await scheduler.unpause_schedule(f"evening_{user_id}")
+        await _scheduler.unpause_schedule(f"morning_{user_id}")
+        await _scheduler.unpause_schedule(f"evening_{user_id}")
         logger.info(f"Reminders resumed for user {user_id}")
     except Exception as e:
         logger.warning(f"Could not resume reminders for {user_id}: {e}")
@@ -184,12 +214,14 @@ async def resume_user_reminders(user_id: int) -> None:
 
 async def remove_user_reminders(user_id: int) -> None:
     """Полностью удалить напоминания пользователя."""
+    if _scheduler is None:
+        return
     try:
-        await scheduler.remove_schedule(f"morning_{user_id}")
+        await _scheduler.remove_schedule(f"morning_{user_id}")
     except Exception:
         pass  # Может не существовать
     try:
-        await scheduler.remove_schedule(f"evening_{user_id}")
+        await _scheduler.remove_schedule(f"evening_{user_id}")
     except Exception:
         pass
     logger.info(f"Reminders removed for user {user_id}")
@@ -202,17 +234,18 @@ _scheduler_task = None
 
 async def start() -> None:
     """Запустить планировщик (вызывать в on_startup)."""
-    global _scheduler_task
-    # APScheduler 4.x требует __aenter__ перед использованием
-    await scheduler.__aenter__()
+    global _scheduler, _scheduler_task
+    _scheduler = await _create_scheduler()
+    await _scheduler.__aenter__()
     _scheduler_task = True
     logger.info("Scheduler started")
 
 
 async def stop() -> None:
     """Остановить планировщик (вызывать в on_shutdown)."""
-    global _scheduler_task
-    if _scheduler_task:
-        await scheduler.__aexit__(None, None, None)
+    global _scheduler, _scheduler_task
+    if _scheduler and _scheduler_task:
+        await _scheduler.__aexit__(None, None, None)
         _scheduler_task = None
+        _scheduler = None
     logger.info("Scheduler stopped")

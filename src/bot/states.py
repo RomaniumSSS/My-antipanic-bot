@@ -26,15 +26,6 @@ class QuizStates(StatesGroup):
     finished = State()  # Финальный экран
 
 
-class MorningStates(StatesGroup):
-    """Утренний ритуал."""
-
-    waiting_for_energy = State()  # Ожидание оценки энергии (1-10)
-    waiting_for_mood = State()  # Ожидание описания состояния
-    showing_steps = State()  # Показ шагов на день
-    waiting_for_quick_step = State()  # Ожидание выбора микрошага на 2 мин
-
-
 class AntipanicSession(StatesGroup):
     """Антипараличный поток /morning: быстро в действие."""
 

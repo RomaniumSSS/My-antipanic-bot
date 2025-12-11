@@ -21,6 +21,21 @@ class Settings(BaseSettings):
     # Alpha Testing: Whitelist (empty = open access)
     ALLOWED_USER_IDS: list[int] = []
 
+    # PostgreSQL
+    POSTGRES_HOST: str = "localhost"
+    POSTGRES_PORT: int = 5432
+    POSTGRES_DB: str = "antipanic"
+    POSTGRES_USER: str = "antipanic"
+    POSTGRES_PASSWORD: SecretStr
+
+    # Redis
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_DB: int = 0
+
+    # Environment (development | production)
+    ENVIRONMENT: str = "development"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     @field_validator("ALLOWED_USER_IDS", mode="before")
@@ -39,6 +54,24 @@ class Settings(BaseSettings):
                     pass
             return [int(x.strip()) for x in v.split(",") if x.strip().isdigit()]
         return v
+
+    @property
+    def database_url(self) -> str:
+        """Get database URL based on environment."""
+        if self.ENVIRONMENT == "production":
+            return (
+                f"postgres://{self.POSTGRES_USER}:"
+                f"{self.POSTGRES_PASSWORD.get_secret_value()}"
+                f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+            )
+        else:
+            # Development: SQLite
+            return "sqlite://db.sqlite3"
+
+    @property
+    def redis_url(self) -> str:
+        """Get Redis URL."""
+        return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
 
 config = Settings()

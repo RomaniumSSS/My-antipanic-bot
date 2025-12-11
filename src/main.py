@@ -9,10 +9,13 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.storage.redis import RedisStorage
+from redis.asyncio import Redis
 from tortoise import Tortoise
 
 from src.bot.handlers import register_routers
 from src.bot.middlewares.access import AccessMiddleware
+from src.bot.middlewares.error_handler import ErrorHandlingMiddleware
 from src.config import config
 from src.database.config import TORTOISE_ORM
 from src.services import scheduler
@@ -51,11 +54,29 @@ async def main():
         token=config.BOT_TOKEN.get_secret_value(),
         default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN),
     )
-    dp = Dispatcher(storage=MemoryStorage())
 
-    # Глобальные middleware (например, whitelist)
+    # FSM Storage: Redis для production, Memory для development
+    if config.ENVIRONMENT == "production":
+        redis = Redis.from_url(
+            config.redis_url,
+            decode_responses=True,
+            encoding="utf-8"
+        )
+        storage = RedisStorage(redis=redis)
+        logger.info(f"Using RedisStorage at {config.REDIS_HOST}:{config.REDIS_PORT}")
+    else:
+        storage = MemoryStorage()
+        logger.info("Using MemoryStorage (development mode)")
+
+    dp = Dispatcher(storage=storage)
+
+    # Глобальные middleware
     dp.message.middleware(AccessMiddleware())
     dp.callback_query.middleware(AccessMiddleware())
+
+    # Error handling middleware (должен быть последним)
+    dp.message.middleware(ErrorHandlingMiddleware())
+    dp.callback_query.middleware(ErrorHandlingMiddleware())
 
     # Подключение роутеров
     register_routers(dp)
@@ -67,7 +88,7 @@ async def main():
     dp.startup.register(_on_startup)
     dp.shutdown.register(on_shutdown)
 
-    logger.info("Starting Antipanic Bot...")
+    logger.info(f"Starting Antipanic Bot in {config.ENVIRONMENT} mode...")
     await dp.start_polling(bot)
 
 
