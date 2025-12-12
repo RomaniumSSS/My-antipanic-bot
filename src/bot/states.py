@@ -3,9 +3,12 @@ FSM States для Antipanic Bot.
 
 Основные потоки:
 - Onboarding: создание первой цели
-- Morning: утренний ритуал (энергия → шаги)
+- AntipanicSession: утренний ритуал (энергия → микродействия)
 - Stuck: когда застрял
 - Evening: вечерний отчёт
+
+AICODE-NOTE: Упрощено для Этапа 1.3 TMA миграции.
+Удалены неиспользуемые states: QuizStates, GoalStates.
 """
 
 from aiogram.fsm.state import State, StatesGroup
@@ -21,13 +24,6 @@ class OnboardingStates(StatesGroup):
 
     waiting_for_goal = State()  # Ожидание описания цели
     waiting_for_deadline = State()  # Ожидание дедлайна
-
-
-class QuizStates(StatesGroup):
-    """Квиз перед онбордингом."""
-
-    answering = State()  # Проход вопросов
-    finished = State()  # Финальный экран
 
 
 class AntipanicSession(StatesGroup):
@@ -62,11 +58,3 @@ class OnboardingSprintStates(StatesGroup):
     """Мини-спринт после квиза."""
 
     paywall = State()  # Пейволл после микрошага
-
-
-class GoalStates(StatesGroup):
-    """Создание новой цели (после онбординга)."""
-
-    waiting_for_goal = State()
-    waiting_for_deadline = State()
-    confirming_stages = State()
