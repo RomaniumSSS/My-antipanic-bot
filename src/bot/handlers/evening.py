@@ -1,11 +1,14 @@
 """
 Evening handlers — вечерний итог дня.
 
-Flow:
+Flow (упрощённый для TMA миграции):
 1. /evening → показ шагов с отметками
 2. Предложение отметить неотмеченные
-3. Оценка дня (1-5)
-4. Обновление streak, XP
+3. Обновление streak, XP → завершение
+
+AICODE-NOTE: Упрощено для Этапа 1.4 TMA миграции.
+Убрана оценка дня (rating 1-5) и мотивационные сообщения.
+Теперь: показ шагов → отметка → +XP → streak → готово.
 """
 
 import logging
@@ -16,8 +19,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from src.bot.callbacks.data import RatingCallback
-from src.bot.keyboards import main_menu_keyboard, rating_keyboard, steps_list_keyboard
+from src.bot.keyboards import main_menu_keyboard, steps_list_keyboard
 from src.bot.states import EveningStates
 from src.database.models import DailyLog, Step, User
 
@@ -83,34 +85,37 @@ async def cmd_evening(message: Message, state: FSMContext) -> None:
             icon = "⬜"
         steps_text += f"{icon} {s.title}\n"
 
-    # Если есть неотмеченные — предлагаем отметить
+    # AICODE-NOTE: Упрощённый флоу без оценки дня
     if pending:
         await message.answer(
             f"🌙 *Вечерний итог*\n\n"
             f"*Шаги дня:*\n{steps_text}\n"
-            f"Есть неотмеченные шаги. Отметь их или оставь как есть:",
+            f"Есть неотмеченные шаги. Отметь их или нажми кнопку ниже для завершения:",
             reply_markup=steps_list_keyboard([s.id for s in pending]),
         )
         await state.set_state(EveningStates.marking_done)
-        await state.update_data(pending_count=len(pending))
     else:
-        # Все отмечены — сразу к оценке
-        await show_rating_prompt(message, steps, completed, daily_log, state)
+        # Все отмечены — сразу завершаем день
+        await finish_day(message, user, steps, completed, daily_log, state)
 
 
-async def show_rating_prompt(
+async def finish_day(
     message: Message,
+    user: User,
     steps: list,
     completed: list,
     daily_log: DailyLog,
     state: FSMContext,
 ) -> None:
-    """Показать запрос оценки дня."""
+    """
+    Завершение дня (упрощённое).
+
+    AICODE-NOTE: Убрана оценка дня и мотивационные сообщения.
+    Теперь сразу показываем итог: шаги → XP → streak.
+    """
     total = len(steps)
     done = len(completed)
     xp_earned = daily_log.xp_earned or 0
-
-    await state.set_state(EveningStates.rating_day)
 
     steps_text = ""
     for s in steps:
@@ -122,81 +127,47 @@ async def show_rating_prompt(
             icon = "⬜"
         steps_text += f"{icon} {s.title}\n"
 
-    await message.answer(
-        f"🌙 *Итоги дня*\n\n"
-        f"{steps_text}\n"
-        f"📊 Выполнено: {done}/{total}\n"
-        f"⭐ XP за день: +{xp_earned}\n\n"
-        "Как прошёл день?",
-        reply_markup=rating_keyboard(),
-    )
-
-
-@router.callback_query(EveningStates.rating_day, RatingCallback.filter())
-async def process_rating(
-    callback: CallbackQuery, callback_data: RatingCallback, state: FSMContext
-) -> None:
-    """Обработка оценки дня."""
-    await callback.answer()
-
-    rating = callback_data.value
-
-    if not callback.from_user:
-        return
-
-    user = await User.get_or_none(telegram_id=callback.from_user.id)
-    if not user:
-        await state.clear()
-        await callback.message.edit_text("Пользователь не найден.")
-        return
-
-    today = date.today()
-    daily_log = await DailyLog.get_or_none(user=user, date=today)
-
-    if daily_log:
-        daily_log.day_rating = str(rating)
-        await daily_log.save()
-
     # Обновляем streak
+    today = date.today()
     update_streak(user, today)
     await user.save()
 
     await state.clear()
 
     # Формируем итоговое сообщение
-    rating_emoji = ["😫", "😕", "😐", "🙂", "😊"][rating - 1]
-
     streak_text = ""
     if user.streak_days >= 3:
         streak_text = f"\n🔥 *Streak: {user.streak_days} дней подряд!*"
     elif user.streak_days > 0:
         streak_text = f"\n🔥 Streak: {user.streak_days}"
 
-    # Мотивационное сообщение в зависимости от оценки
-    if rating >= 4:
-        motivation = "Отличный день! Так держать 💪"
-    elif rating == 3:
-        motivation = "Нормальный день. Завтра будет лучше!"
-    else:
-        motivation = "Бывает. Главное — не сдаваться 🤗"
-
-    await callback.message.edit_text(
+    await message.answer(
         f"🌙 *День завершён!*\n\n"
-        f"Оценка: {rating_emoji}\n"
+        f"{steps_text}\n"
+        f"📊 Выполнено: {done}/{total}\n"
+        f"⭐ XP за день: +{xp_earned}\n"
         f"⭐ Всего XP: {user.xp}{streak_text}\n\n"
-        f"{motivation}\n\n"
-        "До завтра! Напишу утром 🌅"
+        "До завтра! Напишу утром 🌅",
+        reply_markup=main_menu_keyboard(),
     )
 
     logger.info(
         f"Evening completed for user {user.telegram_id}: "
-        f"rating={rating}, streak={user.streak_days}"
+        f"completed={done}/{total}, streak={user.streak_days}"
     )
+
+
+# AICODE-NOTE: Удалён обработчик process_rating после упрощения вечернего флоу.
+# Теперь день завершается сразу через функцию finish_day() без оценки.
 
 
 @router.message(Command("finish_day"))
 async def cmd_finish_day(message: Message, state: FSMContext) -> None:
-    """Альтернативная команда для завершения дня (пропуск неотмеченных)."""
+    """
+    Альтернативная команда для завершения дня (пропуск неотмеченных).
+
+    AICODE-NOTE: Обновлена после упрощения - теперь сразу завершаем день без оценки.
+    """
     if not message.from_user:
         return
 
@@ -215,4 +186,4 @@ async def cmd_finish_day(message: Message, state: FSMContext) -> None:
     steps = await Step.filter(id__in=daily_log.assigned_step_ids)
     completed = [s for s in steps if s.status == "completed"]
 
-    await show_rating_prompt(message, steps, completed, daily_log, state)
+    await finish_day(message, user, steps, completed, daily_log, state)

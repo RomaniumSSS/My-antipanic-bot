@@ -47,11 +47,15 @@ class StuckStates(StatesGroup):
 
 
 class EveningStates(StatesGroup):
-    """Вечерний отчёт."""
+    """
+    Вечерний отчёт (упрощённый).
+
+    AICODE-NOTE: Упрощено для Этапа 1.4 TMA миграции.
+    Удалено состояние rating_day - теперь день завершается сразу без оценки.
+    """
 
     marking_done = State()  # Отметка что сделано
     waiting_for_skip_reason = State()  # Причина пропуска
-    rating_day = State()  # Оценка дня
 
 
 class OnboardingSprintStates(StatesGroup):
