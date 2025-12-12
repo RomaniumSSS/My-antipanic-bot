@@ -164,19 +164,3 @@ class DailyLog(models.Model):
     class Meta:
         table = "daily_logs"
         unique_together = (("user", "date"),)
-
-
-class QuizResult(models.Model):
-    """Результат квиза перед онбордингом."""
-
-    id = fields.IntField(primary_key=True)
-    user = fields.ForeignKeyField(
-        "models.User", related_name="quiz_results", on_delete=fields.CASCADE
-    )
-    answers = fields.JSONField(default=[])
-    dependency_score = fields.FloatField()
-    diagnosis = fields.TextField(null=True)
-    completed_at = fields.DatetimeField(auto_now_add=True)
-
-    class Meta:
-        table = "quiz_results"

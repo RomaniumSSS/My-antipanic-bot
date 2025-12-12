@@ -1,2 +1,0 @@
-taskkill /F /IM python.exe /T
-python -m src.main
