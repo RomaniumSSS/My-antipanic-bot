@@ -5,10 +5,17 @@ Callback actions:
 - done: отметка выполнения
 - skip: пропуск с причиной
 - stuck: переход в stuck flow
+
+AICODE-NOTE: Handler теперь тонкий - бизнес-логика вынесена в use-cases.
+Handler только:
+- Принимает ввод от пользователя
+- Вызывает use-case
+- Показывает результат (клавиатуры, сообщения)
+- Управляет FSM состояниями
 """
 
 import logging
-from datetime import date, datetime
+from datetime import date
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
@@ -33,10 +40,17 @@ from src.bot.states import (
     OnboardingStates,
     StuckStates,
 )
-from src.database.models import DailyLog, Goal, Stage, Step, User
+from src.core.use_cases.complete_step import CompleteStepUseCase
+from src.core.use_cases.skip_step import SkipStepUseCase
+from src.database.models import DailyLog, Goal, Step, User
 from src.services import session as session_service
+from src.storage import user_repo
 
 logger = logging.getLogger(__name__)
+
+# Инициализация use-cases
+complete_step_use_case = CompleteStepUseCase()
+skip_step_use_case = SkipStepUseCase()
 
 PAYWALL_TEXT = (
     "🔥 Смотри, что только что произошло:\n"
@@ -51,53 +65,6 @@ PAYWALL_TEXT = (
 )
 
 
-async def update_stage_progress(step: Step) -> None:
-    """
-    Пересчитывает прогресс этапа на основе выполненных шагов.
-
-    Прогресс = (completed_steps / total_steps) * 100
-    Если все шаги завершены (completed или skipped) — этап помечается как completed.
-    """
-    try:
-        # Загружаем этап шага через stage_id (надёжнее чем await step.stage)
-        stage = await Stage.get(id=step.stage_id)
-        goal = await Goal.get(id=stage.goal_id)
-
-        # Получаем все шаги этапа
-        all_steps = await Step.filter(stage_id=stage.id)
-        total_count = len(all_steps)
-
-        if total_count == 0:
-            logger.warning(f"Stage {stage.id} has no steps, skipping progress update")
-            return
-
-        # Считаем выполненные шаги
-        completed_count = sum(1 for s in all_steps if s.status == "completed")
-
-        # Рассчитываем прогресс
-        new_progress = int((completed_count / total_count) * 100)
-        stage.progress = new_progress
-
-        # Проверяем, все ли шаги завершены (completed или skipped)
-        finished_count = sum(
-            1 for s in all_steps if s.status in ("completed", "skipped")
-        )
-        if finished_count == total_count and completed_count > 0:
-            if goal.status != "onboarding":
-                stage.status = "completed"
-            else:
-                stage.status = "active"
-        elif stage.status == "pending" and completed_count > 0:
-            stage.status = "active"
-
-        await stage.save()
-        logger.info(
-            f"Stage {stage.id} progress updated: {new_progress}% ({completed_count}/{total_count})"
-        )
-    except Exception as e:
-        logger.error(f"Failed to update stage progress for step {step.id}: {e}")
-
-
 router = Router()
 
 
@@ -105,55 +72,44 @@ router = Router()
 async def step_done(
     callback: CallbackQuery, callback_data: StepCallback, state: FSMContext
 ) -> None:
-    """Отметка шага как выполненного."""
+    """
+    Отметка шага как выполненного.
+
+    AICODE-NOTE: Thin handler - вызывает use-case и показывает результат.
+    """
     await callback.answer("✅ Отлично!")
 
-    step_id = callback_data.step_id
-    step = await Step.get_or_none(id=step_id)
-
-    if not step:
-        await callback.message.edit_text("Шаг не найден.")
-        return
-
-    # Обновляем статус шага
-    step.status = "completed"
-    step.completed_at = datetime.now()
-    await step.save()
-
-    # Пересчитываем прогресс этапа
-    await update_stage_progress(step)
-
-    # Обновляем DailyLog
     if not callback.from_user:
         return
 
-    user = await User.get_or_none(telegram_id=callback.from_user.id)
+    step_id = callback_data.step_id
+
+    # 1. Получить пользователя
+    user = await user_repo.get_user(callback.from_user.id)
     if not user:
         await callback.message.edit_text("Пользователь не найден.")
         return
-    today = date.today()
-    daily_log = await DailyLog.get_or_none(user=user, date=today)
 
-    if daily_log:
-        completed = daily_log.completed_step_ids or []
-        if step_id not in completed:
-            completed.append(step_id)
-            daily_log.completed_step_ids = completed
-            daily_log.xp_earned = (daily_log.xp_earned or 0) + step.xp_reward
-            await daily_log.save()
+    # 2. Вызвать use-case для выполнения шага
+    result = await complete_step_use_case.execute(step_id, user)
 
-    # Начисляем XP пользователю
-    user.xp += step.xp_reward
-    await user.save()
+    if not result.success:
+        await callback.message.edit_text(
+            f"Ошибка: {result.error_message}"
+        )
+        return
 
-    # Проверяем, вызвано ли из evening flow
+    # 3. Проверяем, вызвано ли из evening flow или antipanic
     current_state = await state.get_state()
     from_evening = current_state == EveningStates.marking_done
     is_antipanic_body = current_state == AntipanicSession.doing_body_action
     is_antipanic_micro = current_state == AntipanicSession.doing_micro_action
 
-    # Обновляем сообщение
+    # 4. Обновляем сообщение и показываем результат
+    today = date.today()
+    daily_log = await DailyLog.get_or_none(user=user, date=today)
     assigned_ids = daily_log.assigned_step_ids if daily_log else []
+
     if assigned_ids:
         steps = await Step.filter(id__in=assigned_ids)
         steps_text = "\n".join(
@@ -172,7 +128,7 @@ async def step_done(
 
                 await callback.message.edit_text(
                     f"🎉 *Все шаги отмечены!*\n\n{steps_text}\n\n"
-                    f"+{step.xp_reward} XP (всего: {user.xp})\n\n"
+                    f"+{result.xp_earned} XP (всего: {result.total_xp})\n\n"
                     "Как прошёл день?",
                     reply_markup=rating_keyboard(),
                 )
@@ -180,7 +136,7 @@ async def step_done(
                 # Обычный flow
                 await callback.message.edit_text(
                     f"🎉 *Все шаги выполнены!*\n\n{steps_text}\n\n"
-                    f"+{step.xp_reward} XP (всего: {user.xp})\n\n"
+                    f"+{result.xp_earned} XP (всего: {result.total_xp})\n\n"
                     "Отличная работа! Вечером напиши /evening для итогов."
                 )
         else:
@@ -206,14 +162,15 @@ async def step_done(
                 if pending_steps:
                     pending_ids = [s.id for s in pending_steps]
                     await callback.message.edit_text(
-                        f"*Шаги на сегодня:*\n{steps_text}\n\n" f"+{step.xp_reward} XP",
+                        f"*Шаги на сегодня:*\n{steps_text}\n\n"
+                        f"+{result.xp_earned} XP",
                         reply_markup=steps_list_keyboard(pending_ids),
                     )
                 else:
                     # Все pending отмечены, но не из evening flow
                     await callback.message.edit_text(
                         f"*Шаги на сегодня:*\n{steps_text}\n\n"
-                        f"+{step.xp_reward} XP (всего: {user.xp})"
+                        f"+{result.xp_earned} XP (всего: {result.total_xp})"
                     )
 
     if is_antipanic_body or is_antipanic_micro:
@@ -264,15 +221,17 @@ async def step_done(
 async def step_skip(
     callback: CallbackQuery, callback_data: StepCallback, state: FSMContext
 ) -> None:
-    """Пропуск шага — запрашиваем причину."""
+    """
+    Пропуск шага — запрашиваем причину.
+
+    AICODE-NOTE: Thin handler - вызывает use-case и показывает результат.
+    """
     await callback.answer()
 
-    step_id = callback_data.step_id
-    step = await Step.get_or_none(id=step_id)
-
-    if not step:
-        await callback.message.edit_text("Шаг не найден.")
+    if not callback.from_user:
         return
+
+    step_id = callback_data.step_id
 
     current_state = await state.get_state()
     is_antipanic = current_state in (
@@ -282,18 +241,20 @@ async def step_skip(
 
     if is_antipanic:
         # Быстрый пропуск без лишних вопросов для анти-паралич режима
-        step.status = "skipped"
-        await step.save()
-        await update_stage_progress(step)
+        # 1. Получить пользователя
+        user = await user_repo.get_user(callback.from_user.id)
+        if not user:
+            await callback.message.edit_text("Пользователь не найден.")
+            return
 
-        user = await User.get_or_none(telegram_id=callback.from_user.id)
-        today = date.today()
-        daily_log = await DailyLog.get_or_none(user=user, date=today)
-        if daily_log:
-            skip_reasons = daily_log.skip_reasons or {}
-            skip_reasons[str(step_id)] = "-"
-            daily_log.skip_reasons = skip_reasons
-            await daily_log.save()
+        # 2. Вызвать use-case для пропуска шага
+        result = await skip_step_use_case.execute(step_id, user, reason="-")
+
+        if not result.success:
+            await callback.message.edit_text(
+                f"Ошибка: {result.error_message}"
+            )
+            return
 
         data = await state.get_data()
         if current_state == AntipanicSession.doing_body_action:
@@ -328,6 +289,13 @@ async def step_skip(
             )
         return
 
+    # Не-antipanic режим: запрашиваем причину
+    # Получаем шаг для показа названия
+    step = await Step.get_or_none(id=step_id)
+    if not step:
+        await callback.message.edit_text("Шаг не найден.")
+        return
+
     await state.update_data(skipping_step_id=step_id)
     await state.set_state(EveningStates.waiting_for_skip_reason)
 
@@ -339,7 +307,11 @@ async def step_skip(
 
 @router.message(EveningStates.waiting_for_skip_reason)
 async def process_skip_reason(message: Message, state: FSMContext) -> None:
-    """Обработка причины пропуска."""
+    """
+    Обработка причины пропуска.
+
+    AICODE-NOTE: Thin handler - вызывает use-case и показывает результат.
+    """
     if not message.from_user:
         return
 
@@ -351,33 +323,28 @@ async def process_skip_reason(message: Message, state: FSMContext) -> None:
         await state.clear()
         return
 
-    step = await Step.get_or_none(id=step_id)
-    if step:
-        step.status = "skipped"
-        await step.save()
-        # Пересчитываем прогресс этапа (skipped не увеличивает %, но может завершить этап)
-        await update_stage_progress(step)
-
-    # Обновляем DailyLog
-    user = await User.get_or_none(telegram_id=message.from_user.id)
+    # 1. Получить пользователя
+    user = await user_repo.get_user(message.from_user.id)
     if not user:
         await state.clear()
         await message.answer("Пользователь не найден.")
         return
 
-    today = date.today()
-    daily_log = await DailyLog.get_or_none(user=user, date=today)
+    # 2. Вызвать use-case для пропуска шага
+    result = await skip_step_use_case.execute(step_id, user, reason=reason)
 
-    if daily_log:
-        skip_reasons = daily_log.skip_reasons or {}
-        skip_reasons[str(step_id)] = reason
-        daily_log.skip_reasons = skip_reasons
-        await daily_log.save()
+    if not result.success:
+        await message.answer(f"Ошибка: {result.error_message}")
+        await state.clear()
+        return
 
     await state.clear()
 
-    # Показываем обновлённый список
+    # 3. Показываем обновлённый список
+    today = date.today()
+    daily_log = await DailyLog.get_or_none(user=user, date=today)
     assigned_ids = daily_log.assigned_step_ids if daily_log else []
+
     if assigned_ids:
         steps = await Step.filter(id__in=assigned_ids)
 
