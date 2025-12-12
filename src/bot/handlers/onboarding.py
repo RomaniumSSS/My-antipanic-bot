@@ -1,26 +1,25 @@
 """
 Onboarding handlers — создание цели и этапов.
 
-Flow:
+Flow (упрощённый для TMA миграции):
 1. Пользователь вводит цель (из start.py → OnboardingStates.waiting_for_goal)
 2. Пользователь вводит дедлайн
-3. AI разбивает цель на этапы
-4. Пользователь подтверждает или редактирует
-5. Создание Goal + Stages в БД
+3. Создание Goal + 1 дефолтный Stage "Начало" в БД (без AI)
+
+AICODE-NOTE: Упрощено для Этапа 1.2 TMA миграции.
+AI генерация этапов перенесена в BACKLOG.md для будущей реализации.
 """
 
 import logging
 from datetime import date, timedelta
 
-from aiogram import F, Router
+from aiogram import Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import Message
 
-from src.bot.callbacks.data import ConfirmAction, ConfirmCallback
-from src.bot.keyboards import confirm_keyboard, main_menu_keyboard
+from src.bot.keyboards import main_menu_keyboard
 from src.bot.states import OnboardingStates
 from src.database.models import Goal, Stage, User
-from src.services.ai import ai_service
 from src.services.scheduler import setup_user_reminders
 
 logger = logging.getLogger(__name__)
@@ -92,7 +91,12 @@ async def process_goal(message: Message, state: FSMContext) -> None:
 
 @router.message(OnboardingStates.waiting_for_deadline)
 async def process_deadline(message: Message, state: FSMContext) -> None:
-    """Получение дедлайна и генерация этапов."""
+    """
+    Получение дедлайна и создание цели.
+
+    AICODE-NOTE: Упрощено - теперь создаём Goal + 1 Stage "Начало" сразу,
+    без AI генерации этапов и подтверждения.
+    """
     deadline = parse_date(message.text or "")
 
     if not deadline:
@@ -106,60 +110,17 @@ async def process_deadline(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     goal_text = data["goal_text"]
 
-    await state.update_data(deadline=deadline.isoformat())
-
-    # Генерируем этапы через AI
-    wait_msg = await message.answer("🤔 Разбиваю цель на этапы...")
-
-    stages_data = await ai_service.decompose_goal(goal_text, deadline)
-
-    await state.update_data(stages=stages_data)
-
-    # Формируем текст этапов для показа
-    total_days = (deadline - date.today()).days
-    stages_text = ""
-    current_day = 0
-    for i, stage in enumerate(stages_data, 1):
-        days = stage.get("days", total_days // len(stages_data))
-        stages_text += f"{i}. *{stage['title']}* (~{days} дн.)\n"
-        current_day += days
-
-    await wait_msg.delete()
-    await state.set_state(OnboardingStates.confirming_stages)
-
-    await message.answer(
-        f"🎯 *{goal_text}*\n"
-        f"📅 Дедлайн: {deadline.strftime('%d.%m.%Y')}\n\n"
-        f"*Этапы:*\n{stages_text}\n"
-        "Всё верно?",
-        reply_markup=confirm_keyboard(),
-    )
-
-
-@router.callback_query(
-    OnboardingStates.confirming_stages,
-    ConfirmCallback.filter(F.action == ConfirmAction.yes),
-)
-async def confirm_stages(callback: CallbackQuery, state: FSMContext) -> None:
-    """Подтверждение этапов и создание цели."""
-    await callback.answer()
-
-    data = await state.get_data()
-    goal_text = data["goal_text"]
-    deadline = date.fromisoformat(data["deadline"])
-    stages_data = data["stages"]
-
     # Получаем пользователя
-    if not callback.from_user:
+    if not message.from_user:
         return
 
-    user = await User.get_or_none(telegram_id=callback.from_user.id)
+    user = await User.get_or_none(telegram_id=message.from_user.id)
     if not user:
         await state.clear()
-        await callback.message.edit_text("Пользователь не найден. Напиши /start")
+        await message.answer("Пользователь не найден. Напиши /start")
         return
 
-    # Создаём цель
+    # AICODE-NOTE: Создаём цель без AI этапов
     goal = await Goal.create(
         user=user,
         title=goal_text,
@@ -168,21 +129,15 @@ async def confirm_stages(callback: CallbackQuery, state: FSMContext) -> None:
         status="active",
     )
 
-    # Создаём этапы
-    current_date = date.today()
-    for i, stage_info in enumerate(stages_data):
-        days = stage_info.get("days", 7)
-        end_date = current_date + timedelta(days=days)
-
-        await Stage.create(
-            goal=goal,
-            title=stage_info["title"],
-            order=i + 1,
-            start_date=current_date,
-            end_date=end_date,
-            status="active" if i == 0 else "pending",
-        )
-        current_date = end_date + timedelta(days=1)
+    # AICODE-NOTE: Создаём 1 дефолтный этап "Начало" на весь срок
+    await Stage.create(
+        goal=goal,
+        title="Начало",
+        order=1,
+        start_date=date.today(),
+        end_date=deadline,
+        status="active",
+    )
 
     # Настраиваем напоминания
     await setup_user_reminders(
@@ -193,43 +148,17 @@ async def confirm_stages(callback: CallbackQuery, state: FSMContext) -> None:
 
     await state.clear()
 
-    # edit_text не принимает ReplyKeyboardMarkup, поэтому сначала редактируем текст,
-    # а потом шлём отдельное сообщение с клавиатурой.
-    await callback.message.edit_text(
+    await message.answer(
         f"✅ *Цель создана!*\n\n"
         f"🎯 {goal_text}\n"
         f"📅 До {deadline.strftime('%d.%m.%Y')}\n\n"
-        "Жми *Утро* — спланируем первый день."
-    )
-    await callback.message.answer(
-        "Главное меню:", reply_markup=main_menu_keyboard()
+        "Жми *Утро* — спланируем первый день.",
+        reply_markup=main_menu_keyboard(),
     )
 
     logger.info(f"Goal created for user {user.telegram_id}: {goal_text}")
 
 
-@router.callback_query(
-    OnboardingStates.confirming_stages,
-    ConfirmCallback.filter(F.action == ConfirmAction.edit),
-)
-async def edit_stages(callback: CallbackQuery, state: FSMContext) -> None:
-    """Редактирование этапов (упрощённый вариант — ввод заново)."""
-    await callback.answer()
-
-    await state.set_state(OnboardingStates.waiting_for_goal)
-
-    await callback.message.edit_text(
-        "Хорошо, давай начнём сначала.\n\n" "*Какую цель ты хочешь достичь?*"
-    )
-
-
-@router.callback_query(
-    OnboardingStates.confirming_stages,
-    ConfirmCallback.filter(F.action == ConfirmAction.cancel),
-)
-async def cancel_onboarding(callback: CallbackQuery, state: FSMContext) -> None:
-    """Отмена создания цели."""
-    await callback.answer()
-    await state.clear()
-
-    await callback.message.edit_text("Ок, отменил. Когда будешь готов — напиши /start")
+# AICODE-NOTE: Удалены handler'ы для OnboardingStates.confirming_stages
+# (confirm_stages, edit_stages, cancel_onboarding) после упрощения онбординга.
+# Теперь цель создаётся сразу после ввода дедлайна без подтверждения.

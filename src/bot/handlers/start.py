@@ -1,14 +1,19 @@
-"""Базовые хендлеры: /start, /help, /id, /status."""
+"""
+Базовые хендлеры: /start, /help, /id, /status.
+
+AICODE-NOTE: Упрощено для Этапа 1.2 TMA миграции.
+Убран импорт quiz.py (удален в Этапе 1.1).
+Теперь /start ведет напрямую в onboarding без квиза.
+"""
 
 from aiogram import F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
-from src.bot.handlers.quiz import start_quiz
 from src.bot.keyboards import main_menu_keyboard
 from src.bot.states import OnboardingStates
-from src.database.models import Goal, QuizResult, User
+from src.database.models import Goal, User
 
 router = Router()
 
@@ -37,10 +42,12 @@ async def get_or_create_user(message: Message) -> User:
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext) -> None:
     """
-    Точка входа:
-    - Новый пользователь/без цели → квиз → мини-спринт → онбординг
+    Точка входа (упрощенная для TMA миграции):
     - С активной целью → статус + меню
-    - С onboarding целью (незавершенный квиз) → предлагаем завершить или начать заново
+    - Без цели → прямой переход в онбординг (без квиза)
+
+    AICODE-NOTE: Убрана логика квиза и QuizResult после упрощения в Этапе 1.2.
+    Теперь новые пользователи сразу переходят к созданию цели.
     """
     user = await get_or_create_user(message)
 
@@ -69,8 +76,7 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
     # Проверяем незавершенный onboarding goal (защита от цикла)
     onboarding_goal = await Goal.filter(user=user, status="onboarding").first()
     if onboarding_goal:
-        # Стираем временный onboarding goal и сразу переводим в ввод цели,
-        # чтобы пользователь не застревал в повторном квизе.
+        # Стираем временный onboarding goal и сразу переводим в ввод цели
         await onboarding_goal.delete()
         await state.set_state(OnboardingStates.waiting_for_goal)
         await message.answer(
@@ -80,24 +86,15 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
         )
         return
 
-    # Пользователь уже проходил квиз или вернулся после прерванного онбординга —
-    # сразу зовём ввод цели, без повторного квиза.
-    has_quiz_history = await QuizResult.filter(user=user).exists()
-    stored = await state.get_data()
-    finished_quiz_in_state = stored.get("onboarding_quiz_score") is not None
-
-    if has_quiz_history or finished_quiz_in_state:
-        await state.clear()
-        await state.set_state(OnboardingStates.waiting_for_goal)
-        await message.answer(
-            "🔥 Давай продолжим и оформим цель.\n\n"
-            "*Какую цель хочешь достичь?*\n"
-            "Например: выучить Python, запустить блог, похудеть на 5 кг"
-        )
-        return
-
-    # Нет активной цели — запускаем квиз
-    await start_quiz(message, state, user)
+    # AICODE-NOTE: Новые пользователи сразу переходят к созданию цели (без квиза)
+    await state.clear()
+    await state.set_state(OnboardingStates.waiting_for_goal)
+    await message.answer(
+        "Привет! 👋\n\n"
+        "Я помогу тебе преодолеть ступор и начать действовать.\n\n"
+        "*Какую цель хочешь достичь?*\n"
+        "Например: выучить Python, запустить блог, похудеть на 5 кг"
+    )
 
 
 @router.message(Command("help"))

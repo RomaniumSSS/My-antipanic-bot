@@ -12,11 +12,15 @@ from aiogram.fsm.state import State, StatesGroup
 
 
 class OnboardingStates(StatesGroup):
-    """Онбординг: постановка первой цели."""
+    """
+    Онбординг: постановка первой цели.
+
+    AICODE-NOTE: Упрощено для Этапа 1.2 TMA миграции.
+    Убрано состояние confirming_stages - теперь цель создаётся сразу.
+    """
 
     waiting_for_goal = State()  # Ожидание описания цели
     waiting_for_deadline = State()  # Ожидание дедлайна
-    confirming_stages = State()  # Подтверждение этапов от LLM
 
 
 class QuizStates(StatesGroup):
