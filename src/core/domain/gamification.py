@@ -45,11 +45,11 @@ def calculate_streak(user: User, today: date) -> Tuple[int, bool]:
     - флаг, увеличился ли streak (bool)
 
     Логика:
-    - Если сегодня уже зачтено (last_activity_date == today) → streak не меняется
+    - Если сегодня уже зачтено (streak_last_date == today) → streak не меняется
     - Если вчера была активность → streak += 1
     - Если пропущен день → streak = 1
     """
-    last_activity = user.last_activity_date
+    last_activity = user.streak_last_date
 
     if last_activity == today:
         # Сегодня уже была активность, streak не меняется

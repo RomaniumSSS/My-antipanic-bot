@@ -84,7 +84,7 @@ class CompleteStepUseCase:
         user = await user_repo.update_xp(user, xp_earned)
 
         if streak_updated:
-            user.last_activity_date = today
+            user.streak_last_date = today
             user = await user_repo.update_streak(user, new_streak)
 
         logger.info(

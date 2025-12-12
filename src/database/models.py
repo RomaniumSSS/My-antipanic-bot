@@ -35,7 +35,6 @@ class User(models.Model):
 
     goals: fields.ReverseRelation["Goal"]
     daily_logs: fields.ReverseRelation["DailyLog"]
-    quiz_results: fields.ReverseRelation["QuizResult"]
 
     class Meta:
         table = "users"
