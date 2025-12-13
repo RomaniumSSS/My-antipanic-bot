@@ -20,6 +20,7 @@ from src.bot.callbacks.data import (
     GoalSelectCallback,
     MicrohitFeedbackAction,
     MicrohitFeedbackCallback,
+    MicrohitOptionCallback,
     PaywallAction,
     PaywallCallback,
     QuickStepAction,
@@ -193,6 +194,49 @@ def microhit_feedback_keyboard(
         ),
     )
     builder.adjust(1, 2)
+    return builder.as_markup()
+
+
+def microhit_options_keyboard(
+    options: list, blocker: BlockerType, step_id: int | None
+) -> InlineKeyboardMarkup:
+    """
+    Клавиатура с несколькими вариантами микро-ударов на выбор.
+
+    Args:
+        options: List of MicrohitOption with index and text
+        blocker: BlockerType for callbacks
+        step_id: Step ID or None (0 for no step)
+
+    Returns:
+        InlineKeyboardMarkup with option buttons
+
+    Example:
+        options = [
+            MicrohitOption(text="Открой файл", index=1),
+            MicrohitOption(text="Напиши одну строку", index=2),
+        ]
+        keyboard = microhit_options_keyboard(options, BlockerType.fear, None)
+    """
+    builder = InlineKeyboardBuilder()
+    sid = step_id or 0
+
+    for option in options:
+        # Use emoji numbers for better UX
+        emoji_numbers = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
+        emoji = emoji_numbers[option.index - 1] if option.index <= 5 else f"{option.index}."
+
+        builder.button(
+            text=f"{emoji} Вариант {option.index}",
+            callback_data=MicrohitOptionCallback(
+                index=option.index,
+                blocker=blocker,
+                step_id=sid,
+            ),
+        )
+
+    # Show max 3 buttons per row
+    builder.adjust(1)
     return builder.as_markup()
 
 

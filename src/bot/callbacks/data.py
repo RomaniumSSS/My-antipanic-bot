@@ -172,6 +172,24 @@ class MicrohitFeedbackCallback(CallbackData, prefix="microhit"):
     blocker: BlockerType
 
 
+class MicrohitOptionCallback(CallbackData, prefix="mhopt"):
+    """
+    Выбор конкретного варианта микро-удара из списка.
+
+    Используется в Stage 2.3 для показа нескольких вариантов на выбор.
+
+    Использование:
+        MicrohitOptionCallback(index=1, blocker=BlockerType.fear, step_id=0)
+
+    index: 1-based индекс выбранного варианта
+    step_id=0 означает "без привязки к шагу".
+    """
+
+    index: int  # 1-based индекс варианта
+    blocker: BlockerType
+    step_id: int  # 0 = без привязки к шагу
+
+
 class RatingCallback(CallbackData, prefix="rating"):
     """
     Оценка дня (1-5 или emoji).

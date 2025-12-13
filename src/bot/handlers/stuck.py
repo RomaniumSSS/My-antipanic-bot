@@ -4,7 +4,12 @@ Stuck handlers — помощь при застревании.
 Flow:
 1. /stuck или кнопка "Застрял" — быстрый доступ к помощи
 2. Выбор типа блокера (опционально)
-3. AI генерирует микро-удар
+3. AI генерирует НЕСКОЛЬКО вариантов микро-ударов на выбор (Stage 2.3)
+4. Пользователь выбирает подходящий вариант
+5. Показывается выбранный вариант с кнопками "Делаю" / "Ещё варианты" / "Другое"
+
+AICODE-NOTE: Refactored in Stage 2.3 TMA migration.
+Handler is now thin - uses ResolveStuckUseCase for business logic.
 """
 
 import logging
@@ -21,16 +26,19 @@ from src.bot.callbacks.data import (
     BlockerType,
     MicrohitFeedbackAction,
     MicrohitFeedbackCallback,
+    MicrohitOptionCallback,
 )
 from src.bot.keyboards import (
     blocker_keyboard,
     main_menu_keyboard,
     microhit_feedback_keyboard,
+    microhit_options_keyboard,
     steps_list_keyboard,
 )
 from src.bot.states import StuckStates
-from src.database.models import DailyLog, Goal, Stage, Step, User
-from src.services.ai import ai_service
+from src.core.domain.stuck_rules import get_blocker_emoji
+from src.core.use_cases.resolve_stuck import resolve_stuck_use_case
+from src.database.models import DailyLog, Goal, Step, User
 
 logger = logging.getLogger(__name__)
 
@@ -65,41 +73,27 @@ async def cmd_stuck(message: Message, state: FSMContext) -> None:
         )
         return
 
-    # Получаем текущий этап для контекста
-    current_stage = await Stage.filter(goal=active_goal, status="active").first()
-    stage_title = current_stage.title if current_stage else active_goal.title
+    # Use use-case to get stuck context
+    context_result = await resolve_stuck_use_case.get_stuck_context(user, active_goal)
 
-    # Проверяем, есть ли активные шаги сегодня
-    today = date.today()
-    daily_log = await DailyLog.get_or_none(user=user, date=today)
+    if not context_result.success:
+        await message.answer(
+            f"Не получилось определить контекст: {context_result.error_message}",
+            reply_markup=main_menu_keyboard(),
+        )
+        return
 
-    step_title = stage_title  # Fallback
-    step_id = None
-
-    if daily_log and daily_log.assigned_step_ids:
-        # Берём первый pending шаг
-        steps = await Step.filter(id__in=daily_log.assigned_step_ids, status="pending")
-        if steps:
-            first_step = steps[0]
-            step_title = first_step.title
-            step_id = first_step.id
-
-    await state.update_data(stuck_step_id=step_id, stuck_step_title=step_title)
+    await state.update_data(
+        stuck_step_id=context_result.step_id,
+        stuck_step_title=context_result.step_title,
+        stuck_goal_id=active_goal.id,
+    )
     await state.set_state(StuckStates.waiting_for_blocker)
 
     await message.answer(
         "🆘 *Что мешает двигаться?*",
         reply_markup=blocker_keyboard(),
     )
-
-
-# Описания блокеров для промпта
-BLOCKER_DESCRIPTIONS = {
-    BlockerType.fear: "страшно, тревожно браться за задачу",
-    BlockerType.unclear: "не понимает с чего начать",
-    BlockerType.no_time: "кажется что нет времени",
-    BlockerType.no_energy: "нет сил и энергии",
-}
 
 
 @router.callback_query(
@@ -127,109 +121,150 @@ async def blocker_unclear(callback: CallbackQuery, state: FSMContext) -> None:
 async def blocker_other(
     callback: CallbackQuery, callback_data: BlockerCallback, state: FSMContext
 ) -> None:
-    """Обработка других типов блокеров — сразу к микро-удару."""
+    """Обработка других типов блокеров — сразу к вариантам микро-ударов."""
     await callback.answer()
 
     blocker_type = callback_data.type
     await state.update_data(blocker_type=blocker_type.value)
 
-    # Генерируем микро-удар (можно редактировать, т.к. это сообщение бота)
-    await generate_and_show_microhit(callback.message, state, details="", can_edit=True)
+    # Generate multiple microhit options (can edit since it's bot message)
+    await generate_and_show_microhit_options(
+        callback.message, state, details="", can_edit=True
+    )
 
 
 @router.message(StuckStates.waiting_for_details)
 async def process_details(message: Message, state: FSMContext) -> None:
-    """Получение деталей и генерация микро-удара."""
+    """Получение деталей и генерация микро-ударов (несколько вариантов)."""
     details = message.text or ""
     if details == "-":
         details = ""
 
-    await generate_and_show_microhit(message, state, details)
+    await generate_and_show_microhit_options(message, state, details)
 
 
-async def generate_and_show_microhit(
+async def generate_and_show_microhit_options(
     message_or_callback_msg, state: FSMContext, details: str, *, can_edit: bool = False
 ) -> None:
-    """Генерация и показ микро-удара."""
+    """
+    Генерация и показ НЕСКОЛЬКИХ вариантов микро-ударов (Stage 2.3).
+
+    Key improvement: instead of showing one microhit and waiting for "more" request,
+    we generate 2-3 options upfront for user to choose from.
+    """
     data = await state.get_data()
     step_title = data.get("stuck_step_title", "задача")
     blocker_type = data.get("blocker_type", "unclear")
     step_id = data.get("stuck_step_id")
 
-    # Отправляем индикатор загрузки
-    # can_edit=True только если это сообщение бота (например, из callback)
+    # Show loading indicator
     if can_edit:
         wait_msg = await message_or_callback_msg.edit_text(
-            "🤔 Думаю над микро-ударом..."
+            "🤔 Думаю над вариантами микро-ударов..."
         )
     else:
-        wait_msg = await message_or_callback_msg.answer("🤔 Думаю над микро-ударом...")
+        wait_msg = await message_or_callback_msg.answer(
+            "🤔 Думаю над вариантами микро-ударов..."
+        )
 
-    # Генерируем микро-удар
-    valid_types = [b.value for b in BlockerType]
-    if blocker_type in valid_types:
-        blocker_key = BlockerType(blocker_type)
-    else:
-        blocker_key = BlockerType.unclear
-    blocker_desc = BLOCKER_DESCRIPTIONS.get(blocker_key, blocker_type)
-
-    microhit = await ai_service.get_microhit(
-        step_title=step_title, blocker_type=blocker_desc, details=details
+    # Use use-case to generate multiple options
+    result = await resolve_stuck_use_case.generate_microhit_options(
+        step_title=step_title,
+        blocker_type=blocker_type,
+        details=details,
     )
 
-    await state.clear()
+    if not result.success:
+        await state.clear()
+        error_text = (
+            f"Не получилось сгенерировать варианты: {result.error_message}\n\n"
+            "Попробуй ещё раз или напиши /morning"
+        )
+        if hasattr(wait_msg, "edit_text"):
+            await wait_msg.edit_text(error_text)
+        else:
+            await message_or_callback_msg.answer(error_text)
+        return
 
-    # Показываем микро-удар
-    blocker_emoji = {
-        "fear": "😨",
-        "unclear": "🤷",
-        "no_time": "⏰",
-        "no_energy": "😴",
-    }.get(blocker_type, "🔧")
+    options = result.options
+    blocker_key = BlockerType(blocker_type) if blocker_type in [b.value for b in BlockerType] else BlockerType.unclear
+    blocker_emoji = get_blocker_emoji(blocker_type)
 
-    # Получаем список оставшихся шагов для кнопок
-    reply_markup = None
-    if hasattr(message_or_callback_msg, "from_user"):
-        from_user = message_or_callback_msg.from_user
-        user_id = from_user.id if from_user else None
-    elif hasattr(message_or_callback_msg, "chat"):
-        user_id = message_or_callback_msg.chat.id
-    else:
-        user_id = None
-
-    if user_id:
-        user = await User.get_or_none(telegram_id=user_id)
-        if user:
-            today = date.today()
-            daily_log = await DailyLog.get_or_none(user=user, date=today)
-            if daily_log and daily_log.assigned_step_ids:
-                steps = await Step.filter(
-                    id__in=daily_log.assigned_step_ids, status="pending"
-                )
-                if steps:
-                    reply_markup = steps_list_keyboard([s.id for s in steps])
+    # Build message with all options listed
+    options_text = "\n\n".join(
+        [f"{i}. {opt.text}" for i, opt in enumerate(options, start=1)]
+    )
 
     result_text = (
-        f"{blocker_emoji} *Микро-удар:*\n\n"
-        f"{microhit}\n\n"
+        f"{blocker_emoji} *Варианты микро-ударов:*\n\n"
+        f"{options_text}\n\n"
+        f"💡 Выбери наиболее подходящий вариант кнопками ниже!"
+    )
+
+    # Save options to state for later reference
+    await state.update_data(
+        microhit_options=[opt.text for opt in options],
+        blocker_type=blocker_type,
+        stuck_step_id=step_id,
+    )
+    await state.set_state(StuckStates.waiting_for_blocker)  # Reuse state for option selection
+
+    # Show options keyboard
+    options_markup = microhit_options_keyboard(options, blocker_key, step_id)
+
+    if hasattr(wait_msg, "edit_text"):
+        await wait_msg.edit_text(result_text, reply_markup=options_markup)
+    else:
+        await message_or_callback_msg.answer(result_text, reply_markup=options_markup)
+
+    logger.info(
+        f"Generated {len(options)} microhit options for step='{step_title}' blocker='{blocker_type}'"
+    )
+
+
+@router.callback_query(MicrohitOptionCallback.filter())
+async def microhit_option_selected(
+    callback: CallbackQuery, callback_data: MicrohitOptionCallback, state: FSMContext
+) -> None:
+    """
+    Handler for microhit option selection (Stage 2.3).
+
+    User clicked one of the option buttons → show that option with action buttons.
+    """
+    await callback.answer()
+
+    index = callback_data.index
+    blocker = callback_data.blocker
+    step_id = callback_data.step_id or None
+
+    # Get options from state
+    data = await state.get_data()
+    options = data.get("microhit_options", [])
+
+    if index < 1 or index > len(options):
+        await callback.message.edit_text(
+            "Не нашёл этот вариант. Попробуй ещё раз или напиши /morning"
+        )
+        return
+
+    selected_text = options[index - 1]
+    blocker_emoji = get_blocker_emoji(blocker.value)
+
+    # Show selected microhit with action buttons
+    result_text = (
+        f"{blocker_emoji} *Выбранный микро-удар:*\n\n"
+        f"{selected_text}\n\n"
         f"💡 Попробуй это прямо сейчас — всего 2-5 минут!"
     )
 
-    feedback_markup = microhit_feedback_keyboard(step_id, blocker_key)
+    feedback_markup = microhit_feedback_keyboard(step_id, blocker)
 
-    if hasattr(wait_msg, "edit_text"):
-        await wait_msg.edit_text(result_text, reply_markup=feedback_markup)
-    else:
-        await message_or_callback_msg.answer(result_text, reply_markup=feedback_markup)
+    await callback.message.edit_text(result_text, reply_markup=feedback_markup)
+    await state.clear()
 
-    # Если есть незавершённые шаги — шлём клавиатуру для отметок отдельно
-    if reply_markup:
-        await message_or_callback_msg.answer(
-            "Отмечай выполнение или задай ещё вопрос по шагам:",
-            reply_markup=reply_markup,
-        )
-
-    logger.info(f"Microhit generated for step '{step_title}' blocker='{blocker_type}'")
+    logger.info(
+        f"User selected microhit option {index} for blocker='{blocker.value}'"
+    )
 
 
 @router.callback_query(MicrohitFeedbackCallback.filter())
@@ -276,7 +311,7 @@ async def microhit_feedback(
         return
 
     if action == MicrohitFeedbackAction.more:
-        # Генерируем ещё один микро-удар для того же шага
+        # Generate NEW set of microhit options (Stage 2.3)
         if not callback.from_user:
             return
         user = await User.get_or_none(telegram_id=callback.from_user.id)
@@ -284,25 +319,38 @@ async def microhit_feedback(
             await callback.message.edit_text("Не нашёл профиль. Напиши /start.")
             return
 
-        # Пытаемся получить шаг по id, иначе fallback
+        # Get active goal for context
+        active_goal = await Goal.filter(user=user, status="active").first()
+        if not active_goal:
+            await callback.message.edit_text(
+                "Не нашёл активную цель. Напиши /start."
+            )
+            return
+
+        # Get step title
         step_title = "задача"
         if step_id:
             step = await Step.get_or_none(id=step_id)
             if step:
                 step_title = step.title
+        else:
+            # Use context from goal
+            context_result = await resolve_stuck_use_case.get_stuck_context(
+                user, active_goal
+            )
+            if context_result.success:
+                step_title = context_result.step_title
+                step_id = context_result.step_id
 
-        wait_msg = await callback.message.edit_text(
-            "🤔 Думаю над новым микро-ударом..."
-        )
-        microhit = await ai_service.get_microhit(
-            step_title=step_title, blocker_type=blocker.value, details=""
+        # Generate new set of options
+        await state.update_data(
+            stuck_step_title=step_title,
+            stuck_step_id=step_id,
+            blocker_type=blocker.value,
         )
 
-        feedback_markup = microhit_feedback_keyboard(step_id, blocker)
-        await wait_msg.edit_text(
-            f"🆘 *Ещё идея:*\n\n{microhit}\n\n"
-            "💡 Попробуй и отметь статус кнопками ниже.",
-            reply_markup=feedback_markup,
+        await generate_and_show_microhit_options(
+            callback.message, state, details="", can_edit=True
         )
 
 
@@ -368,7 +416,11 @@ async def microhit_feedback_details_fallback(
 async def _process_microhit_feedback_details(
     message: Message, state: FSMContext
 ) -> None:
-    """Общая логика обработки уточняющих деталей для микро-удара."""
+    """
+    Обработка уточняющих деталей для микро-удара (Stage 2.3).
+
+    Generates multiple microhit options based on user details.
+    """
     details = message.text or ""
     data = await state.get_data()
 
@@ -392,15 +444,11 @@ async def _process_microhit_feedback_details(
         )
         return
 
-    wait_msg = await message.answer("🤔 Думаю над микро-ударом...")
-    microhit = await ai_service.get_microhit(
-        step_title=step_title, blocker_type=blocker.value, details=details
+    # Update state with context and generate options
+    await state.update_data(
+        stuck_step_title=step_title,
+        stuck_step_id=step_id,
+        blocker_type=blocker.value,
     )
 
-    feedback_markup = microhit_feedback_keyboard(step_id, blocker)
-    await state.clear()
-
-    await wait_msg.edit_text(
-        f"🆘 *Идея:*\n\n{microhit}\n\n" "💡 Попробуй и отметь статус кнопками ниже.",
-        reply_markup=feedback_markup,
-    )
+    await generate_and_show_microhit_options(message, state, details=details)
