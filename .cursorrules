@@ -1,0 +1,66 @@
+# Antipanic Bot — Cursor Rules
+
+## 🚨 Read First
+Before ANY action:
+1. `docs/AGENTS.md` — initialization protocol
+2. Relevant: `AIOGRAM_RULES.md` / `TORTOISE_RULES.md` / `OPENAI_RULES.md`
+
+Start response: "✅ Verified: [docs read]"
+
+---
+
+## Anti-Hallucination (Critical)
+
+### aiogram 3.x
+- ✅ `CallbackData` subclass (NOT raw strings)
+- ✅ `@router.message(Command("start"))` (NOT `@dp.message_handler`)
+- ✅ `F.text`, `F.from_user.id` for filters
+- ❌ NEVER aiogram 2.x syntax
+
+### Tortoise ORM
+- ✅ `await User.get(...)` / `await Model.filter(...).prefetch_related(...)`
+- ❌ NEVER forget `await` (returns coroutine)
+- ❌ NEVER skip `prefetch_related` (causes N+1)
+
+### OpenAI
+- ✅ `AsyncOpenAI()` only
+- ❌ NEVER sync client in async
+
+Check `docs/AGENTS.md` § 6-7 for details.
+
+---
+
+## Structure (Enforce)
+```
+src/bot/handlers/    # One router per flow
+src/services/        # Business logic
+src/core/            # Domain rules
+src/storage/         # Repositories
+```
+❌ NO files in root
+
+---
+
+## Code Style
+- ✅ `async/await` for ALL I/O
+- ✅ Type hints on all functions
+- ✅ AICODE-NOTE/TODO/QUESTION for non-obvious code
+
+---
+
+## Plan Mode
+Trigger if: multiple modules, DB changes, architecture shifts, new integrations.
+Create `plans/NNN-objective.md` → get approval → implement.
+
+---
+
+## Self-Check
+- [ ] Matches task?
+- [ ] Docs updated if needed?
+- [ ] AICODE markers where needed?
+- [ ] No hardcoded secrets?
+- [ ] `await` before DB/API calls?
+
+---
+
+See `docs/PROJECT_DNA.md` for project philosophy.

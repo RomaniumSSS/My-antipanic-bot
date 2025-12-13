@@ -140,7 +140,7 @@ async def test_repeated_stuck_on_same_step_does_not_duplicate_flow(db: None) -> 
 async def test_resolved_stuck_step_returns_to_regular_flow(
     db: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """После генерации микро-удара FSM очищается и можно продолжать работу."""
+    """После генерации вариантов микро-ударов state остается в waiting_for_blocker (Stage 2.3 flow)."""
     user, step = await _create_step_for_user(11003)
     state = make_state(user.telegram_id)
     msg = DummyMessage(from_user=DummyUser(user.telegram_id))
@@ -151,10 +151,27 @@ async def test_resolved_stuck_step_returns_to_regular_flow(
         state,
     )
 
-    async def fake_microhit(*args, **kwargs):
-        return "Сделай один маленький шаг."
+    # Mock resolve_stuck_use_case to return multiple options (Stage 2.3)
+    from src.core.use_cases.resolve_stuck import MicrohitOption, resolve_stuck_use_case
+    from dataclasses import dataclass
 
-    monkeypatch.setattr(ai_service, "get_microhit", fake_microhit)
+    @dataclass
+    class FakeResult:
+        success: bool = True
+        options: list = None
+        error_message: str = ""
+
+        def __post_init__(self):
+            if self.options is None:
+                self.options = [
+                    MicrohitOption(text="Вариант 1", index=1),
+                    MicrohitOption(text="Вариант 2", index=2),
+                ]
+
+    async def fake_generate_options(*args, **kwargs):
+        return FakeResult()
+
+    monkeypatch.setattr(resolve_stuck_use_case, "generate_microhit_options", fake_generate_options)
 
     await blocker_other(
         DummyCallback(message=msg, from_user=msg.from_user),
@@ -162,21 +179,9 @@ async def test_resolved_stuck_step_returns_to_regular_flow(
         state,
     )
 
-    assert await state.get_state() is None
-    assert await state.get_data() == {}
-    assert any("Микро-удар" in item["text"] for item in msg.sent)
-
-    # Нажимаем "Сделаю" после микро-удара — состояние остаётся пустым
-    await microhit_feedback(
-        DummyCallback(message=msg, from_user=msg.from_user),
-        MicrohitFeedbackCallback(
-            action=MicrohitFeedbackAction.do,
-            step_id=step.id,
-            blocker=BlockerType.no_energy,
-        ),
-        state,
-    )
-    assert await state.get_state() is None
+    # After Stage 2.3 refactor: state is NOT cleared until user selects an option
+    assert await state.get_state() == StuckStates.waiting_for_blocker.state
+    assert any("Варианты микро-ударов" in item["text"] for item in msg.sent)
 
 
 @pytest.mark.asyncio

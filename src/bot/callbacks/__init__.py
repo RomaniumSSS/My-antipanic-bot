@@ -2,8 +2,6 @@
 from .data import (
     BlockerCallback,
     BlockerType,
-    ConfirmAction,
-    ConfirmCallback,
     EnergyCallback,
     RatingCallback,
     StepAction,
@@ -12,11 +10,9 @@ from .data import (
 
 __all__ = [
     "EnergyCallback",
-    "ConfirmCallback",
     "BlockerCallback",
     "StepCallback",
     "RatingCallback",
     "BlockerType",
-    "ConfirmAction",
     "StepAction",
 ]
