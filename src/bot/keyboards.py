@@ -11,8 +11,6 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from src.bot.callbacks.data import (
     BlockerCallback,
     BlockerType,
-    ConfirmAction,
-    ConfirmCallback,
     DeepenAction,
     DeepenCallback,
     EnergyCallback,
@@ -67,28 +65,6 @@ def simple_energy_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def confirm_keyboard() -> InlineKeyboardMarkup:
-    """Подтверждение."""
-    builder = InlineKeyboardBuilder()
-    cb_yes = ConfirmCallback(action=ConfirmAction.yes)
-    cb_edit = ConfirmCallback(action=ConfirmAction.edit)
-    builder.button(text="✅ Ок", callback_data=cb_yes)
-    builder.button(text="✏️ Изменить", callback_data=cb_edit)
-    builder.adjust(2)
-    return builder.as_markup()
-
-
-def confirm_with_cancel_keyboard() -> InlineKeyboardMarkup:
-    """Подтверждение с отменой."""
-    builder = InlineKeyboardBuilder()
-    cb_yes = ConfirmCallback(action=ConfirmAction.yes)
-    cb_edit = ConfirmCallback(action=ConfirmAction.edit)
-    cb_cancel = ConfirmCallback(action=ConfirmAction.cancel)
-    builder.button(text="✅ Ок", callback_data=cb_yes)
-    builder.button(text="✏️ Изменить", callback_data=cb_edit)
-    builder.button(text="❌ Отмена", callback_data=cb_cancel)
-    builder.adjust(2, 1)
-    return builder.as_markup()
 
 
 def blocker_keyboard() -> InlineKeyboardMarkup:
@@ -154,17 +130,6 @@ def steps_list_keyboard(step_ids: list[int]) -> InlineKeyboardMarkup:
         cb_stuck = StepCallback(action=StepAction.stuck, step_id=step_id)
         builder.button(text=f"✅ Шаг {i}", callback_data=cb_done)
         builder.button(text="🆘", callback_data=cb_stuck)
-    builder.adjust(2)
-    return builder.as_markup()
-
-
-def yes_no_keyboard() -> InlineKeyboardMarkup:
-    """Простое подтверждение Да/Нет."""
-    builder = InlineKeyboardBuilder()
-    cb_yes = ConfirmCallback(action=ConfirmAction.yes)
-    cb_no = ConfirmCallback(action=ConfirmAction.cancel)
-    builder.button(text="✅ Да", callback_data=cb_yes)
-    builder.button(text="❌ Нет", callback_data=cb_no)
     builder.adjust(2)
     return builder.as_markup()
 

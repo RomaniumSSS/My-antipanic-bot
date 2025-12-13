@@ -33,14 +33,6 @@ class BlockerType(str, Enum):
     no_energy = "no_energy"  # 😴 Нет сил
 
 
-class ConfirmAction(str, Enum):
-    """Действия подтверждения."""
-
-    yes = "yes"
-    edit = "edit"
-    cancel = "cancel"
-
-
 class StepAction(str, Enum):
     """Действия с шагом."""
 
@@ -118,18 +110,6 @@ class SimpleEnergyCallback(CallbackData, prefix="nrg"):
     """
 
     level: EnergyLevel
-
-
-class ConfirmCallback(CallbackData, prefix="confirm"):
-    """
-    Подтверждение действия.
-
-    Использование:
-        ConfirmCallback(action=ConfirmAction.yes)
-        ConfirmCallback.filter(F.action == ConfirmAction.edit)
-    """
-
-    action: ConfirmAction
 
 
 class BlockerCallback(CallbackData, prefix="blocker"):
