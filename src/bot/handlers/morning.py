@@ -8,7 +8,8 @@ Flow:
 4) микрошаг по задаче 2–5 мин → кнопка «Сделал»
 5) замер напряжения после → предложение углубиться 15–30 мин или завершить
 
-Legacy планировщик вынесен в `legacy_morning.py`.
+AICODE-NOTE: Refactored in Stage 2.2 TMA migration.
+Handler is now thin - uses AssignMorningStepsUseCase for business logic.
 """
 
 import logging
@@ -33,8 +34,9 @@ from src.bot.keyboards import (
     tension_keyboard,
 )
 from src.bot.states import AntipanicSession
+from src.core.use_cases.assign_morning_steps import assign_morning_steps_use_case
 from src.database.models import Goal, Stage, User
-from src.services import session as session_service
+from src.services.session import support_message
 
 logger = logging.getLogger(__name__)
 
@@ -187,18 +189,21 @@ async def handle_tension_before(
     tension = callback_data.value
     await state.update_data(tension_before=tension)
 
-    try:
-        body_text = await session_service.get_body_micro_action(user)
-        body_step = await session_service.create_body_step(
-            user=user, goal=goal, action_text=body_text, tension=tension
-        )
-    except ValueError:
+    # Use use-case to create body step
+    result = await assign_morning_steps_use_case.create_body_step(
+        user=user, goal=goal, tension=tension
+    )
+
+    if not result.success:
         await state.clear()
         await callback.message.edit_text(
-            "Не вижу активных этапов. Напиши /start, чтобы обновить цель.",
+            f"Не получилось создать шаг: {result.error_message}",
             reply_markup=main_menu_keyboard(),
         )
         return
+
+    body_step = result.step
+    body_text = result.action_text
 
     await state.update_data(body_step_id=body_step.id)
     await state.set_state(AntipanicSession.doing_body_action)
@@ -221,7 +226,7 @@ async def handle_tension_after(
     before = data.get("tension_before")
     after = callback_data.value
 
-    support = session_service.support_message(before=before, after=after)
+    support = support_message(before=before, after=after)
     await state.update_data(tension_after=after)
     await state.set_state(AntipanicSession.offered_deepen)
 
@@ -258,20 +263,22 @@ async def handle_deepen_choice(
         )
         return
 
-    # Запросить ещё один шаг на 15–30 минут
-    try:
-        tension_after = data.get("tension_after")
-        deep_step = await session_service.get_task_micro_action(
-            user=user, goal=goal, tension=tension_after, max_minutes=30
-        )
-    except Exception as e:  # noqa: BLE001
-        logger.error(f"Failed to create deepening step: {e}")
+    # Запросить ещё один шаг на 15–30 минут через use-case
+    tension_after = data.get("tension_after")
+    result = await assign_morning_steps_use_case.create_task_micro_step(
+        user=user, goal=goal, tension=tension_after, max_minutes=30
+    )
+
+    if not result.success:
+        logger.error(f"Failed to create deepening step: {result.error_message}")
         await state.clear()
         await callback.message.edit_text(
-            "Не получилось подобрать следующий шаг. Попробуй /stuck или начни заново.",
+            f"Не получилось подобрать следующий шаг: {result.error_message}",
             reply_markup=main_menu_keyboard(),
         )
         return
+
+    deep_step = result.step
 
     await state.clear()
     await callback.message.edit_text(

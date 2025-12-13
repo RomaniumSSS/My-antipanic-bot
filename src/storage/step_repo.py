@@ -5,7 +5,7 @@ AICODE-NOTE: Репозиторий содержит только доступ �
 Бизнес-логика находится в core/domain и core/use_cases.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
 from src.database.models import Step
@@ -51,3 +51,38 @@ async def get_finished_count(stage_id: int) -> int:
     return await Step.filter(
         stage_id=stage_id, status__in=["completed", "skipped"]
     ).count()
+
+
+async def create_step(
+    stage_id: int,
+    title: str,
+    difficulty: str,
+    estimated_minutes: int,
+    xp_reward: int,
+    scheduled_date: date,
+    status: str = "pending",
+) -> Step:
+    """
+    Создать новый шаг.
+
+    Args:
+        stage_id: ID этапа
+        title: Название шага
+        difficulty: Сложность ("easy", "medium", "hard")
+        estimated_minutes: Ожидаемое время в минутах
+        xp_reward: Награда XP
+        scheduled_date: Запланированная дата
+        status: Статус шага (default: "pending")
+
+    Returns:
+        Созданный Step
+    """
+    return await Step.create(
+        stage_id=stage_id,
+        title=title,
+        difficulty=difficulty,
+        estimated_minutes=estimated_minutes,
+        xp_reward=xp_reward,
+        scheduled_date=scheduled_date,
+        status=status,
+    )
