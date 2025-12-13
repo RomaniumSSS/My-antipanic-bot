@@ -21,12 +21,16 @@ class Settings(BaseSettings):
     # Alpha Testing: Whitelist (empty = open access)
     ALLOWED_USER_IDS: list[int] = []
 
-    # PostgreSQL
+    # Database URL (Railway/Render format)
+    # If set, overrides PostgreSQL individual vars
+    DATABASE_URL: str | None = None
+
+    # PostgreSQL (individual vars, fallback if DATABASE_URL not set)
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5432
     POSTGRES_DB: str = "antipanic"
     POSTGRES_USER: str = "antipanic"
-    POSTGRES_PASSWORD: SecretStr
+    POSTGRES_PASSWORD: SecretStr | None = None
 
     # Redis
     REDIS_HOST: str = "localhost"
@@ -35,6 +39,10 @@ class Settings(BaseSettings):
 
     # Environment (development | production)
     ENVIRONMENT: str = "development"
+
+    # Webhook (for production)
+    WEBHOOK_URL: str | None = None
+    WEBHOOK_PATH: str = "/webhook"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
@@ -57,16 +65,34 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> str:
-        """Get database URL based on environment."""
+        """
+        Get database URL based on environment.
+
+        Priority:
+        1. DATABASE_URL env var (Railway/Render format)
+        2. PostgreSQL individual vars (production)
+        3. SQLite (development)
+        """
+        # 1. Use DATABASE_URL if provided (Railway/Render)
+        if self.DATABASE_URL:
+            url = self.DATABASE_URL
+            # Railway uses postgres://, but asyncpg needs postgresql://
+            if url.startswith("postgres://"):
+                url = url.replace("postgres://", "postgresql://", 1)
+            return url
+
+        # 2. Production: construct from individual vars
         if self.ENVIRONMENT == "production":
+            if not self.POSTGRES_PASSWORD:
+                raise ValueError("POSTGRES_PASSWORD required for production")
             return (
-                f"postgres://{self.POSTGRES_USER}:"
+                f"postgresql://{self.POSTGRES_USER}:"
                 f"{self.POSTGRES_PASSWORD.get_secret_value()}"
                 f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
             )
-        else:
-            # Development: SQLite
-            return "sqlite://db.sqlite3"
+
+        # 3. Development: SQLite
+        return "sqlite://db.sqlite3"
 
     @property
     def redis_url(self) -> str:

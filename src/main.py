@@ -87,7 +87,61 @@ async def main():
     dp.shutdown.register(on_shutdown)
 
     logger.info(f"Starting Antipanic Bot in {config.ENVIRONMENT} mode...")
-    await dp.start_polling(bot)
+
+    # Production: webhook mode
+    if config.ENVIRONMENT == "production" and config.WEBHOOK_URL:
+        from aiohttp import web
+
+        # Set webhook
+        webhook_url = f"{config.WEBHOOK_URL}{config.WEBHOOK_PATH}"
+        await bot.set_webhook(
+            webhook_url,
+            drop_pending_updates=True,
+        )
+        logger.info(f"Webhook set to: {webhook_url}")
+
+        # Create webhook handler
+        async def handle_webhook(request: web.Request) -> web.Response:
+            """Handle incoming webhook updates."""
+            update = await request.json()
+            await dp.feed_update(bot, update)
+            return web.Response()
+
+        # Create aiohttp app
+        app = web.Application()
+        app.router.add_post(config.WEBHOOK_PATH, handle_webhook)
+
+        # Add health check endpoint
+        async def health(request: web.Request) -> web.Response:
+            return web.json_response({"status": "ok"})
+
+        app.router.add_get("/health", health)
+
+        # Startup hook for aiohttp
+        async def on_app_startup(app: web.Application):
+            await _on_startup()
+
+        async def on_app_shutdown(app: web.Application):
+            await on_shutdown()
+
+        app.on_startup.append(on_app_startup)
+        app.on_shutdown.append(on_app_shutdown)
+
+        # Run aiohttp server
+        import os
+
+        port = int(os.getenv("PORT", 8080))
+        logger.info(f"Starting webhook server on port {port}")
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, "0.0.0.0", port)
+        await site.start()
+
+        # Keep running
+        await asyncio.Event().wait()
+    else:
+        # Development: polling mode
+        await dp.start_polling(bot)
 
 
 if __name__ == "__main__":
