@@ -79,7 +79,11 @@ class Settings(BaseSettings):
         # 1. Use DATABASE_URL if provided (Railway/Render)
         if self.DATABASE_URL:
             # Tortoise ORM uses postgres:// scheme (not postgresql://)
-            return self.DATABASE_URL
+            # Railway/Render provide postgresql://, so we need to replace it
+            url = self.DATABASE_URL
+            if url.startswith("postgresql://"):
+                url = url.replace("postgresql://", "postgres://", 1)
+            return url
 
         # 2. Production: construct from individual vars
         if self.ENVIRONMENT == "production":
