@@ -33,6 +33,20 @@ async def on_startup(bot: Bot) -> None:
     await Tortoise.generate_schemas()
     logger.info("Database initialized")
 
+    # Миграция: добавляем новые поля для напоминаний (если их нет)
+    try:
+        conn = Tortoise.get_connection("default")
+        # Проверяем и добавляем колонки если их нет
+        await conn.execute_script("""
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS reminders_enabled BOOLEAN DEFAULT TRUE,
+            ADD COLUMN IF NOT EXISTS next_morning_reminder_at TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS next_evening_reminder_at TIMESTAMPTZ;
+        """)
+        logger.info("Database schema updated (reminders fields)")
+    except Exception as e:
+        logger.warning(f"Schema migration skipped or failed: {e}")
+
     # Инициализация reminders service
     reminders.set_bot(bot)
     logger.info("Reminders service initialized")
