@@ -104,7 +104,10 @@ async def main():
         # Create webhook handler
         async def handle_webhook(request: web.Request) -> web.Response:
             """Handle incoming webhook updates."""
-            update = await request.json()
+            from aiogram.types import Update
+
+            update_data = await request.json()
+            update = Update(**update_data)
             await dp.feed_update(bot, update)
             return web.Response()
 
