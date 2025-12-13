@@ -40,16 +40,13 @@ def get_bot() -> Bot:
     return _bot
 
 
-async def _create_scheduler() -> AsyncScheduler:
+async def _create_scheduler() -> AsyncScheduler | None:
     """Создать scheduler с datastore в зависимости от окружения."""
     if config.ENVIRONMENT == "production":
-        # PostgreSQL datastore для персистентности
-        # Конвертируем postgres:// в postgresql+asyncpg://
-        db_url = config.database_url.replace("postgres://", "postgresql+asyncpg://")
-        engine = create_async_engine(db_url, echo=False)
-        datastore = SQLAlchemyDataStore(engine)
-        logger.info("Using SQLAlchemy datastore for scheduler (PostgreSQL)")
-        return AsyncScheduler(datastore)
+        # TODO: Временно отключен в production (проблема с greenlet/libstdc++.so.6)
+        # Позже заменим на более лёгкое решение (например, aiocron или APScheduler in-memory)
+        logger.warning("Scheduler disabled in production (temporary)")
+        return None
     else:
         # In-memory для development
         logger.info("Using in-memory scheduler (development mode)")
@@ -236,6 +233,12 @@ async def start() -> None:
     """Запустить планировщик (вызывать в on_startup)."""
     global _scheduler, _scheduler_task
     _scheduler = await _create_scheduler()
+
+    # Skip if scheduler is disabled (production)
+    if _scheduler is None:
+        logger.info("Scheduler start skipped (disabled in production)")
+        return
+
     await _scheduler.__aenter__()
     _scheduler_task = True
     logger.info("Scheduler started")
