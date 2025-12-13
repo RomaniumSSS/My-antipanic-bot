@@ -32,7 +32,10 @@ class Settings(BaseSettings):
     POSTGRES_USER: str = "antipanic"
     POSTGRES_PASSWORD: SecretStr | None = None
 
-    # Redis
+    # Redis URL (Railway/Render format)
+    REDIS_URL: str | None = None
+
+    # Redis (individual vars, fallback if REDIS_URL not set)
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
@@ -96,7 +99,18 @@ class Settings(BaseSettings):
 
     @property
     def redis_url(self) -> str:
-        """Get Redis URL."""
+        """
+        Get Redis URL.
+        
+        Priority:
+        1. REDIS_URL env var (Railway/Render format)
+        2. Redis individual vars (development)
+        """
+        # 1. Use REDIS_URL if provided (Railway/Render)
+        if self.REDIS_URL:
+            return self.REDIS_URL
+        
+        # 2. Development: construct from individual vars
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
 
