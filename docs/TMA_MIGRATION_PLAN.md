@@ -110,152 +110,244 @@
 
 ---
 
-## Этап 2: Разделить слои (2-3 дня)
+## Этап 2: Разделить слои (по сценариям, 3-5 дней)
 
-**Цель**: Подготовить код для TMA, разделить бот и логику
+**Цель**: Подготовить код для TMA, разделить бот и логику. Привести к структуре, где Этап 3/4 становятся механическими.
 
 ### Зачем разделять слои?
 
 **Проблема**: Сейчас вся логика в aiogram handlers → нельзя подключить TMA без дублирования кода.
 
-**Решение**: Разделить на слои:
+**Решение**: Разделить на слои **по сценариям использования** (не по модулям!):
+
+**Архитектурные слои**:
 ```
 src/
-├── core/              # Бизнес-логика (без зависимости от aiogram/fastapi)
-│   ├── actions.py     # Создание микродействий
-│   ├── gamification.py # XP, streak, level
-│   ├── stuck_logic.py # Логика микроударов
-│   └── daily_log.py   # Работа с DailyLog
-├── storage/           # Работа с БД (репозитории)
+├── core/              # Бизнес-логика (без aiogram/fastapi)
+│   ├── domain/        # Чистые правила (без БД, без Telegram)
+│   │   ├── gamification.py  # calculate_xp, update_streak
+│   │   ├── step_rules.py    # can_complete_step, can_skip_step
+│   │   └── stuck_rules.py   # is_stuck, generate_microhit_options
+│   └── use_cases/     # Сценарии использования
+│       ├── complete_step.py
+│       ├── skip_step.py
+│       ├── assign_morning_steps.py
+│       ├── resolve_stuck.py
+│       └── complete_daily_reflection.py
+├── storage/           # Репозитории (тупые CRUD)
 │   ├── user_repo.py
 │   ├── goal_repo.py
 │   ├── step_repo.py
 │   └── daily_log_repo.py
-├── interfaces/
-│   ├── bot/           # aiogram handlers (кнопки/команды)
-│   │   ├── handlers/
-│   │   ├── keyboards.py
-│   │   └── states.py
-│   └── api/           # FastAPI эндпоинты (для TMA)
-│       ├── routers/
-│       └── schemas.py
-├── services/
-│   ├── ai.py          # OpenAI
-│   └── scheduler.py   # APScheduler
-├── database/
-│   ├── models.py
-│   └── config.py
-└── main.py            # Точка входа бота
+├── bot/               # aiogram handlers (thin layer)
+│   ├── handlers/
+│   ├── keyboards.py
+│   └── states.py
+├── services/          # Внешние сервисы
+│   ├── ai.py
+│   └── scheduler.py
+└── database/
+    ├── models.py
+    └── config.py
 ```
 
-### Принцип разделения
+### Принцип разделения (Thin Handlers)
 
-**Правило**: aiogram handler НЕ должен содержать бизнес-логику, только:
-1. Получить данные от пользователя
-2. Вызвать `core` функцию
-3. Отправить результат пользователю
+**Правило**: Handler = принять ввод → вызвать use-case → показать результат → переключить state
 
 **Было** (плохо):
 ```python
-# src/bot/handlers/stuck.py
+# src/bot/handlers/steps.py
 @router.callback_query(...)
-async def blocker_other(callback: CallbackQuery, ...):
-    blocker_type = callback_data.type
-
-    # ❌ Бизнес-логика прямо в handler
-    microhit = await ai_service.get_microhit(...)
+async def mark_done(callback: CallbackQuery, ...):
+    # ❌ Бизнес-логика в handler
+    step = await Step.get(id=step_id)
     step.status = "completed"
     await step.save()
+
     user.xp += step.xp_reward
     await user.save()
 
-    await callback.message.edit_text(...)
+    update_streak(user, date.today())
+    await user.save()
+
+    await callback.message.edit_text(f"✅ +{step.xp_reward} XP")
 ```
 
 **Стало** (хорошо):
 ```python
-# src/core/stuck_logic.py
-async def generate_microhit(
-    step_title: str,
-    blocker_type: str,
-    details: str = ""
-) -> str:
-    """Бизнес-логика генерации микроудара."""
-    return await ai_service.get_microhit(step_title, blocker_type, details)
+# src/core/use_cases/complete_step.py
+class CompleteStepUseCase:
+    async def execute(self, user_id: int, step_id: int) -> StepCompletionResult:
+        user = await user_repo.get_user(user_id)
+        step = await step_repo.get_step(step_id)
 
-async def complete_microhit(user_id: int, step_id: int) -> dict:
-    """Отметить микроудар выполненным и начислить XP."""
-    user = await user_repo.get_by_telegram_id(user_id)
-    step = await step_repo.get_by_id(step_id)
+        # Домейн-правила (чистые функции)
+        xp = calculate_xp_reward(step)
+        update_streak(user, date.today())
 
-    step.status = "completed"
-    await step_repo.save(step)
+        # Репозитории (доступ к данным)
+        await step_repo.mark_completed(step)
+        await user_repo.update_xp(user, xp)
+        await daily_log_repo.log_completion(user, step)
 
-    xp_earned = await gamification.add_xp(user, step.xp_reward)
+        return StepCompletionResult(xp=xp, total_xp=user.xp)
 
-    return {"xp_earned": xp_earned, "total_xp": user.xp}
-
-# src/interfaces/bot/handlers/stuck.py
+# src/bot/handlers/steps.py
 @router.callback_query(...)
-async def blocker_other(callback: CallbackQuery, ...):
-    # ✅ Только вызов core и отображение
-    microhit = await stuck_logic.generate_microhit(
-        step_title=...,
-        blocker_type=...,
-    )
-    await callback.message.edit_text(f"💡 {microhit}")
+async def mark_done(callback: CallbackQuery, ...):
+    # ✅ Только вызов use-case и отображение
+    result = await complete_step_use_case.execute(user_id, step_id)
+    await callback.message.edit_text(f"✅ +{result.xp} XP")
 ```
 
-Теперь **FastAPI эндпоинт для TMA** может использовать ТУ ЖЕ логику:
+Теперь **FastAPI endpoint для TMA** использует ТУ ЖЕ use-case:
 ```python
-# src/interfaces/api/routers/stuck.py
-@router.post("/microhit/generate")
-async def generate_microhit_api(data: MicrohitRequest):
-    microhit = await stuck_logic.generate_microhit(
-        step_title=data.step_title,
-        blocker_type=data.blocker_type,
-    )
-    return {"microhit": microhit}
+# src/interfaces/api/routers/steps.py
+@router.post("/steps/{step_id}/complete")
+async def complete_step_api(step_id: int, user: User = Depends(get_current_user)):
+    result = await complete_step_use_case.execute(user.telegram_id, step_id)
+    return result.dict()
 ```
 
-### Что переместить
+### Подход: НЕ "переписать всё", а по одному сценарию
 
-1. **core/actions.py**
-   - Создание микродействий
-   - Генерация шагов через AI
-   - Логика AntipanicSession
+**Приоритет сценариев** (делать в этом порядке):
 
-2. **core/gamification.py**
-   - `add_xp(user, amount) -> int`
-   - `update_streak(user) -> int`
-   - `calculate_level(xp) -> int`
+1. **Выполнение/пропуск шага** — самый критичный (XP, streak, статусы)
+2. **Утренний сценарий** — назначение шагов под энергию
+3. **Stuck-логика** — микроудары + варианты на выбор
+4. **Вечерний сценарий** — фиксация дня
+5. **Баг с "Изменить"** — критичный UX косяк
+6. **Минимальные тесты** — на каждый сценарий
 
-3. **core/stuck_logic.py**
-   - `generate_microhit(...) -> str`
-   - `complete_microhit(...) -> dict`
-   - `get_blocker_options() -> list`
+### Sub-stages (поэтапно, с коммитами)
 
-4. **core/daily_log.py**
-   - `create_or_get_today_log(user) -> DailyLog`
-   - `add_step_to_log(log, step, completed=False)`
-   - `get_day_summary(user, date) -> dict`
+#### 2.1. Выполнение/пропуск шага (Complete/Skip Step Use-Case)
 
-5. **storage/** (репозитории)
-   - Все операции с БД через репозитории
-   - `user_repo.get_by_telegram_id(id)`
-   - `goal_repo.get_active_for_user(user)`
-   - `step_repo.create(stage, data)`
+**Что делать**:
+1. Создать репозитории:
+   - `storage/step_repo.py` — get_step, mark_completed, mark_skipped
+   - `storage/user_repo.py` — get_user, update_xp, update_streak
+   - `storage/daily_log_repo.py` — get_or_create_daily_log, log_completion
 
-### Действия
+2. Создать домейн-функции:
+   - `core/domain/gamification.py` — calculate_xp_reward(step), update_streak(user, date)
+   - `core/domain/step_rules.py` — can_complete_step(step), can_skip_step(step)
 
-1. Создать структуру папок `core/` и `storage/`
-2. Вынести логику из handlers в core
-3. Обернуть все обращения к БД в репозитории
-4. Обновить handlers: убрать логику, оставить только вызовы core
-5. Тест: убедиться что бот работает так же
-6. Коммит: `refactor: extract business logic to core layer`
+3. Создать use-cases:
+   - `core/use_cases/complete_step.py` — CompleteStepUseCase
+   - `core/use_cases/skip_step.py` — SkipStepUseCase
 
-**Результат**: Логика отделена от интерфейса, готова к подключению API
+4. Обновить handler:
+   - `src/bot/handlers/steps.py` — использовать use-cases (thin handler)
+
+5. Написать тест:
+   - `tests/test_complete_step_scenario.py`
+
+6. Прогнать руками: выполнить/пропустить шаг через бота
+7. Коммит: `refactor(stage-2.1): extract complete/skip step to use-cases`
+
+**Результат**: Логика XP/streak вынесена, handler тонкий
+
+#### 2.2. Утренний сценарий (Morning Assignment Use-Case)
+
+**Что делать**:
+1. Создать репозитории:
+   - `storage/goal_repo.py` — get_active_goal, get_active_stage
+   - `storage/step_repo.py` (уже есть) — create_steps_bulk
+
+2. Создать домейн-функции:
+   - `core/domain/step_generation.py` — calculate_steps_count_by_energy(energy), select_difficulty(energy)
+
+3. Создать use-case:
+   - `core/use_cases/assign_morning_steps.py` — AssignMorningStepsUseCase
+
+4. Обновить handlers:
+   - `src/bot/handlers/morning.py`
+   - `src/bot/handlers/antipanic.py`
+
+5. Написать тест:
+   - `tests/test_morning_assignment_scenario.py`
+
+6. Прогнать руками: /morning флоу
+7. Коммит: `refactor(stage-2.2): extract morning assignment to use-case`
+
+**Результат**: Утренний флоу независим от aiogram
+
+#### 2.3. Stuck-логика + варианты (Stuck Resolution Use-Case)
+
+**Что делать**:
+1. Создать домейн-функции:
+   - `core/domain/stuck_rules.py` — is_stuck(user), generate_microhit_options(blocker_type) → list[str]
+
+2. Создать use-case:
+   - `core/use_cases/resolve_stuck.py` — ResolveStuckUseCase
+
+3. Обновить handler:
+   - `src/bot/handlers/stuck.py` — предложить **несколько вариантов** микродействий на выбор (не один!)
+
+4. Написать тест:
+   - `tests/test_stuck_resolution_scenario.py`
+
+5. Прогнать руками: /stuck → выбрать блокер → получить **варианты** → выбрать → выполнить
+6. Коммит: `feat(stage-2.3): add stuck resolution use-case with multiple microhit options`
+
+**Результат**: Stuck-логика вынесена, варианты на выбор
+
+#### 2.4. Вечерний сценарий (Evening Reflection Use-Case)
+
+**Что делать**:
+1. Создать домейн-функции:
+   - `core/domain/reflection_rules.py` — calculate_daily_progress(user, date), generate_feedback(progress)
+
+2. Создать use-case:
+   - `core/use_cases/complete_daily_reflection.py` — CompleteDailyReflectionUseCase
+
+3. Обновить handler:
+   - `src/bot/handlers/evening.py`
+
+4. Написать тест:
+   - `tests/test_evening_reflection_scenario.py`
+
+5. Прогнать руками: /evening флоу
+6. Коммит: `refactor(stage-2.4): extract evening reflection to use-case`
+
+**Результат**: Вечерний флоу независим от aiogram
+
+#### 2.5. Закрыть баг с "Изменить"
+
+**Что делать**:
+1. Исследовать баг: handlers/start.py (кнопка "Изменить" удаляет цель?)
+2. Зафиксить баг
+3. Написать тест: `tests/test_edit_goal_flow.py`
+4. Коммит: `fix(stage-2.5): fix edit goal button flow`
+
+**Результат**: Критичный UX баг закрыт
+
+#### 2.6. Финальная проверка
+
+**Что делать**:
+1. Прогнать все тесты: `pytest`
+2. Прогнать руками основные флоу:
+   - Новый пользователь → цель → /morning → выполнить шаг → /evening
+   - /stuck → выбрать блокер → микроудар → выполнить
+3. Обновить `docs/TMA_PROGRESS.md` — отметить Этап 2 выполненным
+4. Коммит: `docs(stage-2.6): update TMA_PROGRESS.md for Stage 2 completion`
+
+**Результат**: Этап 2 завершён, логика готова для Этапа 3/4
+
+### Критические правила
+
+1. **НЕ "переписать всё"** — по одному сценарию, прогнать руками, закоммитить
+2. **Репозитории = тупые** — только CRUD, без бизнес-логики
+3. **Домейн = чистые функции** — без БД, без Telegram
+4. **Use-cases = оркестрация** — связывают репозитории + домейн + AI
+5. **Handlers = тонкие** — принять ввод → вызвать use-case → показать результат
+6. **Тест после каждого sub-stage** — руками + pytest
+7. **Цель НЕ "идеальная архитектура"** — а чтобы Этап 3/4 стали механическими
+
+**Результат Этапа 2**: Логика отделена от интерфейса, готова к TMA и деплою
 
 ---
 

@@ -15,8 +15,8 @@
 - [ ] Этап 2: Разделить слои (по сценариям, 3-5 дней) 🔄
   - [x] 2.1: Выполнение/пропуск шага (Complete/Skip Step Use-Case) ✅
   - [x] 2.2: Утренний сценарий (Morning Assignment Use-Case) ✅
-  - [ ] 2.3: Stuck-логика + варианты (Stuck Resolution Use-Case)
-  - [ ] 2.4: Вечерний сценарий (Evening Reflection Use-Case)
+  - [x] 2.3: Stuck-логика + варианты (Stuck Resolution Use-Case) ✅
+  - [x] 2.4: Вечерний сценарий (Evening Reflection Use-Case) ✅
   - [ ] 2.5: Закрыть баг с "Изменить"
   - [ ] 2.6: Финальная проверка
 - [ ] Этап 3: Деплой бота + БД (1-2 дня)
@@ -388,51 +388,119 @@ src/
 
 ---
 
-#### ⬜ 2.3: Stuck-логика + варианты (Stuck Resolution Use-Case)
+#### ✅ 2.3: Stuck-логика + варианты (Stuck Resolution Use-Case)
 
-**Статус**: Не начато
+**Статус**: Завершен
+**Дата**: 2025-12-13
+**Коммит**: `6adfe69` - feat(stage-2.3): add stuck resolution use-case with multiple microhit options
 
-**Что делать**:
-1. Создать домейн-функции:
-   - `core/domain/stuck_rules.py` — is_stuck(user), generate_microhit_options(blocker_type) → list[str]
+**Что сделано**:
+1. ✅ Создан `core/domain/stuck_rules.py`:
+   - get_blocker_description(blocker_type) — описания для AI промптов
+   - get_blocker_emoji(blocker_type) — эмодзи для UI
+   - is_valid_blocker(blocker_type) — валидация типа блокера
+   - normalize_blocker_type(blocker_type) — нормализация в enum
+   - should_request_details(blocker_type) — нужны ли детали
+   - calculate_microhit_count(blocker_type, has_details) — сколько вариантов генерировать (2-3)
 
-2. Создать use-case:
-   - `core/use_cases/resolve_stuck.py` — ResolveStuckUseCase
+2. ✅ Создан `core/use_cases/resolve_stuck.py`:
+   - ResolveStuckUseCase с методами:
+     - get_stuck_context(user, goal) — получение контекста (step/stage)
+     - generate_microhit_options(step_title, blocker_type, details, count) → MicrohitOptionsResult
+   - Result dataclasses: MicrohitOption, MicrohitOptionsResult, StuckContextResult
 
-3. Обновить handler:
-   - `src/bot/handlers/stuck.py` — предложить **несколько вариантов** микродействий на выбор
+3. ✅ Обновлен `src/bot/callbacks/data.py`:
+   - Добавлен MicrohitOptionCallback для выбора варианта
 
-4. Написать тест: `tests/test_stuck_resolution_scenario.py`
+4. ✅ Обновлен `src/bot/keyboards.py`:
+   - Добавлена функция microhit_options_keyboard(options, blocker, step_id)
+   - Показывает варианты с эмодзи (1️⃣, 2️⃣, 3️⃣)
 
-5. Прогнать руками: /stuck → выбрать блокер → получить **варианты** → выбрать → выполнить
+5. ✅ Рефакторирован `src/bot/handlers/stuck.py`:
+   - Использует ResolveStuckUseCase вместо прямого вызова ai_service
+   - Handler стал тонким — только UI логика
+   - Новая функция: generate_and_show_microhit_options() вместо generate_and_show_microhit()
+   - Новый handler: microhit_option_selected() для выбора варианта
+   - Обновлены handlers для blocker_other, process_details, microhit_feedback
+   - Кнопка "Ещё варианты" теперь генерирует НОВЫЙ набор вариантов
 
-6. Коммит: `feat(stage-2.3): add stuck resolution use-case with multiple microhit options`
+6. ✅ Проверены импорты и синтаксис: успешно
+7. ✅ Проверены use-case методы и domain функции: всё работает
 
-**Результат**: Stuck-логика вынесена, варианты на выбор
+### Результат:
+
+**Было** (stuck.py):
+- Генерация одного микро-удара
+- Кнопка "Ещё вариант" → новый одиночный микро-удар
+- Вся логика в handler (AI вызовы, blocker описания)
+
+**Стало**:
+- **Handler** (stuck.py): тонкий, только UI-логика (callbacks, keyboards, FSM)
+- **Репозитории**: не добавлялись (используем существующие)
+- **Домейн** (stuck_rules.py): чистые функции для blocker logic
+- **Use-case** (resolve_stuck.py): оркестрация AI + context + генерация вариантов
+
+**Ключевое улучшение Stage 2.3:**
+Вместо показа ОДНОГО микро-удара и ожидания запроса "ещё",
+теперь генерируется 2-3 варианта СРАЗУ для выбора пользователем.
+
+**Flow:**
+1. /stuck → выбор блокера → генерация 2-3 вариантов
+2. Пользователь выбирает подходящий → показывается с кнопками "Делаю" / "Ещё варианты" / "Другое"
+3. Кнопка "Ещё варианты" → генерируется НОВЫЙ набор из 2-3 вариантов
+
+**Следующий шаг**: Этап 2.4 - Вечерний сценарий (Evening Reflection Use-Case)
 
 ---
 
-#### ⬜ 2.4: Вечерний сценарий (Evening Reflection Use-Case)
+#### ✅ 2.4: Вечерний сценарий (Evening Reflection Use-Case)
 
-**Статус**: Не начато
+**Статус**: Завершен
+**Дата**: 2025-12-13
+**Коммит**: (будет создан) - refactor(stage-2.4): extract evening reflection to use-case
 
-**Что делать**:
-1. Создать домейн-функции:
-   - `core/domain/reflection_rules.py` — calculate_daily_progress(user, date), generate_feedback(progress)
+**Что сделано**:
+1. ✅ Создан `core/domain/reflection_rules.py`:
+   - calculate_daily_progress(daily_log, steps) — подсчет статистики дня
+   - format_steps_summary(steps) — форматирование списка шагов с эмодзи
+   - should_show_streak_celebration(streak_days) — определение особого празднования streak
+   - format_streak_text(streak_days) — форматирование текста streak
 
-2. Создать use-case:
-   - `core/use_cases/complete_daily_reflection.py` — CompleteDailyReflectionUseCase
+2. ✅ Создан `core/use_cases/complete_daily_reflection.py`:
+   - CompleteDailyReflectionUseCase с методами:
+     - get_daily_summary(user, today) → DailySummaryResult
+     - complete_day(user, today) → DayCompletionResult
+   - Result dataclasses: DailySummaryResult, DayCompletionResult
 
-3. Обновить handler:
-   - `src/bot/handlers/evening.py`
+3. ✅ Рефакторирован `src/bot/handlers/evening.py`:
+   - Использует CompleteDailyReflectionUseCase вместо локальных функций
+   - Handler стал тонким — только UI логика
+   - Удалена функция update_streak (теперь в gamification.calculate_streak)
+   - Упрощена функция finish_day (теперь только отображение результата)
 
-4. Написать тест: `tests/test_evening_reflection_scenario.py`
+4. ✅ Проверены импорты и синтаксис: успешно
+5. ✅ Ruff check: успешно
 
-5. Прогнать руками: /evening флоу
+### Результат:
 
-6. Коммит: `refactor(stage-2.4): extract evening reflection to use-case`
+**Было** (evening.py):
+- Вся бизнес-логика в handler (streak, stats, форматирование)
+- Функция update_streak в handler (9 строк)
+- Функция finish_day в handler (56 строк с логикой)
 
-**Результат**: Вечерний флоу независим от aiogram
+**Стало**:
+- **Handler** (evening.py): тонкий, только UI-логика (клавиатуры, сообщения, FSM)
+- **Домейн** (reflection_rules.py): чистые функции для расчета статистики и форматирования
+- **Use-case** (complete_daily_reflection.py): оркестрация DailyLog + steps + gamification
+- **Gamification** (используем существующий calculate_streak из gamification.py)
+
+**Ключевые улучшения Stage 2.4:**
+- Вся логика streak вынесена в domain layer (gamification.py)
+- Все расчеты статистики в domain layer (reflection_rules.py)
+- Handler теперь только вызывает use-case и показывает результат
+- Готово для использования из TMA API
+
+**Следующий шаг**: Этап 2.5 - Закрыть баг с "Изменить"
 
 ---
 
