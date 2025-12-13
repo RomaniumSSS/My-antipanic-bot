@@ -51,3 +51,8 @@ warn_unused_ignores = true
 disallow_untyped_defs = false
 ignore_missing_imports = true
 
+[tool.aerich]
+tortoise_orm = "src.database.config.TORTOISE_ORM"
+location = "./migrations"
+src_folder = "./."
+
