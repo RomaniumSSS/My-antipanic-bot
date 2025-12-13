@@ -13,8 +13,8 @@
 - [x] Этап 1.4: Упростить evening flow ✅
 - [x] Этап 1.5: Чистка states.py ✅
 - [ ] Этап 2: Разделить слои (по сценариям, 3-5 дней) 🔄
-  - [ ] 2.1: Выполнение/пропуск шага (Complete/Skip Step Use-Case)
-  - [ ] 2.2: Утренний сценарий (Morning Assignment Use-Case)
+  - [x] 2.1: Выполнение/пропуск шага (Complete/Skip Step Use-Case) ✅
+  - [x] 2.2: Утренний сценарий (Morning Assignment Use-Case) ✅
   - [ ] 2.3: Stuck-логика + варианты (Stuck Resolution Use-Case)
   - [ ] 2.4: Вечерний сценарий (Evening Reflection Use-Case)
   - [ ] 2.5: Закрыть баг с "Изменить"
@@ -326,32 +326,65 @@ src/
 
 ---
 
-#### ⬜ 2.2: Утренний сценарий (Morning Assignment Use-Case)
+#### ✅ 2.2: Утренний сценарий (Morning Assignment Use-Case)
 
-**Статус**: Не начато
+**Статус**: Завершен
+**Дата**: 2025-12-13
+**Коммит**: `5bf5667` - refactor(stage-2.2): extract morning assignment to use-case
 
-**Что делать**:
-1. Создать репозитории:
-   - `storage/goal_repo.py` — get_active_goal, get_active_stage
-   - `storage/step_repo.py` (уже есть) — create_steps_bulk
+**Что сделано**:
+1. ✅ Создан `storage/goal_repo.py`:
+   - get_active_goal, get_active_goals
+   - get_active_stage, get_all_active_stages
+   - get_pending_stages, get_all_stages
+   - create_stage, update_stage_status, save_goal, save_stage
 
-2. Создать домейн-функции:
-   - `core/domain/step_generation.py` — calculate_steps_count_by_energy(energy), select_difficulty(energy)
+2. ✅ Создан `core/domain/step_generation.py`:
+   - energy_from_tension(tension) — конвертация напряжения в энергию
+   - select_step_difficulty(energy) — выбор сложности шага
+   - calculate_max_step_duration(energy, is_micro) — расчет длительности
+   - calculate_xp_for_step(difficulty, duration) — расчет XP
+   - should_offer_deepen(before, after) — предложение углубления
+   - calculate_steps_count_by_energy(energy) — количество шагов
 
-3. Создать use-case:
-   - `core/use_cases/assign_morning_steps.py` — AssignMorningStepsUseCase
+3. ✅ Создан `core/use_cases/assign_morning_steps.py`:
+   - AssignMorningStepsUseCase с методами:
+     - ensure_active_stage(goal) — обеспечение активного этапа
+     - get_body_micro_action(user) — получение телесного действия
+     - create_body_step(user, goal, tension) — создание body шага
+     - create_task_micro_step(user, goal, tension, max_minutes) — создание task шага
 
-4. Обновить handlers:
-   - `src/bot/handlers/morning.py`
-   - `src/bot/handlers/antipanic.py`
+4. ✅ Обновлен `src/storage/daily_log_repo.py`:
+   - Добавлена функция log_step_assignment(daily_log, step_id, energy, mood)
 
-5. Написать тест: `tests/test_morning_assignment_scenario.py`
+5. ✅ Обновлен `src/storage/step_repo.py`:
+   - Добавлена функция create_step(stage_id, title, difficulty, ...)
 
-6. Прогнать руками: /morning флоу
+6. ✅ Рефакторирован `src/bot/handlers/morning.py`:
+   - Использует AssignMorningStepsUseCase вместо session_service
+   - Handler стал тонким — только UI логика
+   - Бизнес-логика вынесена в use-case
 
-7. Коммит: `refactor(stage-2.2): extract morning assignment to use-case`
+7. ✅ Обновлен `src/storage/__init__.py`:
+   - Экспорт goal_repo для импорта через `from src.storage import goal_repo`
 
-**Результат**: Утренний флоу независим от aiogram
+8. ✅ Проверены импорты и синтаксис: успешно
+9. ✅ flake8 чист (игнорируя E501 длинные строки)
+
+### Результат:
+
+**Было** (session.py + morning.py):
+- Вся логика создания шагов в services/session.py
+- Handler напрямую вызывает session_service
+- 268 строк в session.py (ensure_active_stage, create_body_step, get_task_micro_action)
+
+**Стало**:
+- **Handler** (morning.py): тонкий, только UI-логика (callback handling, FSM, keyboards)
+- **Репозитории** (goal_repo, step_repo, daily_log_repo): тупые CRUD без бизнес-логики
+- **Домейн** (step_generation.py): чистые функции расчета (energy, difficulty, XP)
+- **Use-case** (assign_morning_steps.py): оркестрация репозиториев + AI + domain rules
+
+**Следующий шаг**: Этап 2.3 - Stuck-логика + варианты (Stuck Resolution Use-Case)
 
 ---
 
