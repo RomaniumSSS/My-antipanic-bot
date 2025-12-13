@@ -18,7 +18,7 @@ from src.bot.middlewares.access import AccessMiddleware
 from src.bot.middlewares.error_handler import ErrorHandlingMiddleware
 from src.config import config
 from src.database.config import TORTOISE_ORM
-from src.services import scheduler
+from src.services import reminders
 
 # Настройка логов
 logging.basicConfig(
@@ -33,17 +33,13 @@ async def on_startup(bot: Bot) -> None:
     await Tortoise.generate_schemas()
     logger.info("Database initialized")
 
-    # Инициализация scheduler
-    scheduler.set_bot(bot)
-    await scheduler.start()
-    logger.info("Scheduler started")
+    # Инициализация reminders service
+    reminders.set_bot(bot)
+    logger.info("Reminders service initialized")
 
 
 async def on_shutdown() -> None:
     """Закрытие при остановке."""
-    await scheduler.stop()
-    logger.info("Scheduler stopped")
-
     await Tortoise.close_connections()
     logger.info("Database connections closed")
 
@@ -119,7 +115,22 @@ async def main():
         async def health(request: web.Request) -> web.Response:
             return web.json_response({"status": "ok"})
 
+        # Add cron tick endpoint for reminders
+        async def cron_tick(request: web.Request) -> web.Response:
+            """Process reminders (called by external cron service)."""
+            from src.services import reminders
+
+            # Check token
+            token = request.query.get("token")
+            if not config.CRON_TOKEN or token != config.CRON_TOKEN.get_secret_value():
+                return web.json_response({"error": "Unauthorized"}, status=401)
+
+            # Process reminders
+            stats = await reminders.process_reminders()
+            return web.json_response({"status": "ok", "stats": stats})
+
         app.router.add_get("/health", health)
+        app.router.add_get("/cron/tick", cron_tick)
 
         # Startup hook for aiohttp
         async def on_app_startup(app: web.Application):

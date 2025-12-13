@@ -20,7 +20,7 @@ from aiogram.types import Message
 from src.bot.keyboards import main_menu_keyboard
 from src.bot.states import OnboardingStates
 from src.database.models import Goal, Stage, User
-from src.services.scheduler import setup_user_reminders
+from src.services.reminders import setup_user_reminders
 
 logger = logging.getLogger(__name__)
 
@@ -140,11 +140,7 @@ async def process_deadline(message: Message, state: FSMContext) -> None:
     )
 
     # Настраиваем напоминания
-    await setup_user_reminders(
-        user_id=user.telegram_id,
-        morning_time=user.reminder_morning,
-        evening_time=user.reminder_evening,
-    )
+    await setup_user_reminders(user)
 
     await state.clear()
 

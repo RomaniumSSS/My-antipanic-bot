@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     WEBHOOK_URL: str | None = None
     WEBHOOK_PATH: str = "/webhook"
 
+    # Cron token for /cron/tick endpoint (generate random string)
+    CRON_TOKEN: SecretStr | None = None
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     @field_validator("ALLOWED_USER_IDS", mode="before")

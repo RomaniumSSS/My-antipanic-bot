@@ -26,10 +26,15 @@ class User(models.Model):
     streak_days = fields.IntField(default=0)
     streak_last_date = fields.DateField(null=True)
 
-    # Настройки напоминаний (время в формате HH:MM)
+    # Настройки напоминаний (время в формате HH:MM, в часовом поясе пользователя)
     reminder_morning = fields.CharField(max_length=5, default="09:00")
     reminder_evening = fields.CharField(max_length=5, default="21:00")
     timezone_offset = fields.IntField(default=3)  # UTC+3 (Moscow)
+    reminders_enabled = fields.BooleanField(default=True)
+
+    # Следующие напоминания (UTC datetime для cron)
+    next_morning_reminder_at = fields.DatetimeField(null=True)
+    next_evening_reminder_at = fields.DatetimeField(null=True)
 
     created_at = fields.DatetimeField(auto_now_add=True)
 
