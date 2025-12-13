@@ -11,7 +11,7 @@ from datetime import date
 from typing import Optional
 
 from src.core.domain.step_rules import can_skip_step
-from src.database.models import Step, User
+from src.database.models import User
 from src.storage import daily_log_repo, step_repo
 
 logger = logging.getLogger(__name__)

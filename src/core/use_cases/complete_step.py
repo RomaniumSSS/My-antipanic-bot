@@ -7,12 +7,12 @@ Handlers вызывают use-case и получают результат.
 
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date
 from typing import Optional
 
 from src.core.domain.gamification import calculate_streak, calculate_xp_reward
 from src.core.domain.step_rules import can_complete_step
-from src.database.models import Step, User
+from src.database.models import User
 from src.storage import daily_log_repo, stage_repo, step_repo, user_repo
 
 logger = logging.getLogger(__name__)

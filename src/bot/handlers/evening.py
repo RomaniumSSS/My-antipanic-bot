@@ -17,7 +17,7 @@ from datetime import date, timedelta
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import Message
 
 from src.bot.keyboards import main_menu_keyboard, steps_list_keyboard
 from src.bot.states import EveningStates
