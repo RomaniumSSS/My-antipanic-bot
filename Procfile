@@ -1,1 +1,1 @@
-web: aerich upgrade && python -m src.main
+web: python -m src.main

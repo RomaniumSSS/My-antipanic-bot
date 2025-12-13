@@ -14,13 +14,13 @@ logger = logging.getLogger(__name__)
 def get_tortoise_db_url() -> str:
     """
     Get database URL with proper scheme for Tortoise ORM.
-    
+
     Tortoise ORM requires 'postgres://' scheme, but Railway/Render
     provide 'postgresql://' URLs. This function ensures conversion.
     """
     # Try config.database_url first (has built-in conversion)
     url = config.database_url
-    
+
     # Fallback: if still None or SQLite in production, check env directly
     # This handles edge cases where pydantic might not load env vars correctly
     if config.ENVIRONMENT == "production":
@@ -31,15 +31,17 @@ def get_tortoise_db_url() -> str:
                 f"config.database_url was: {url}"
             )
             url = env_url
-    
+
     # Ensure postgres:// scheme (Tortoise requirement)
     # postgresql:// -> postgres://
     if url.startswith("postgresql://"):
         url = "postgres://" + url[13:]  # len("postgresql://") = 13
         logger.info("Converted postgresql:// to postgres:// for Tortoise ORM")
-    
-    logger.info(f"Database URL scheme: {url.split('://')[0] if '://' in url else 'unknown'}")
-    
+
+    logger.info(
+        f"Database URL scheme: {url.split('://')[0] if '://' in url else 'unknown'}"
+    )
+
     return url
 
 

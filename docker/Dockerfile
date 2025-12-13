@@ -20,5 +20,5 @@ COPY . .
 # Create logs directory
 RUN mkdir -p /app/logs
 
-# Run migrations and start bot
-CMD aerich upgrade && python -m src.main
+# Start bot (Tortoise.generate_schemas() creates tables automatically)
+CMD python -m src.main
