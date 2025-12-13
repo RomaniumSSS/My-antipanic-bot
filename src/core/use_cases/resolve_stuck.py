@@ -14,7 +14,6 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import date
-from typing import Optional
 
 from src.bot.callbacks.data import BlockerType
 from src.core.domain.stuck_rules import (
@@ -52,17 +51,15 @@ class StuckContextResult:
 
     success: bool
     step_title: str = ""
-    step_id: Optional[int] = None
-    stage: Optional[Stage] = None
+    step_id: int | None = None
+    stage: Stage | None = None
     error_message: str = ""
 
 
 class ResolveStuckUseCase:
     """Use-case for resolving stuck/blocker situations."""
 
-    async def get_stuck_context(
-        self, user: User, goal: Goal
-    ) -> StuckContextResult:
+    async def get_stuck_context(self, user: User, goal: Goal) -> StuckContextResult:
         """
         Get context for stuck resolution - current step or stage title.
 
@@ -115,7 +112,7 @@ class ResolveStuckUseCase:
         step_title: str,
         blocker_type: BlockerType | str,
         details: str = "",
-        count: Optional[int] = None,
+        count: int | None = None,
     ) -> MicrohitOptionsResult:
         """
         Generate multiple microhit options for user to choose from.
@@ -169,9 +166,7 @@ class ResolveStuckUseCase:
             options = []
             for i, result in enumerate(microhits, start=1):
                 if isinstance(result, Exception):
-                    logger.error(
-                        f"Failed to generate microhit option {i}: {result}"
-                    )
+                    logger.error(f"Failed to generate microhit option {i}: {result}")
                     continue
 
                 options.append(MicrohitOption(text=result, index=i))
@@ -182,9 +177,7 @@ class ResolveStuckUseCase:
                     error_message="Не удалось сгенерировать варианты микро-ударов",
                 )
 
-            logger.info(
-                f"Successfully generated {len(options)} microhit options"
-            )
+            logger.info(f"Successfully generated {len(options)} microhit options")
 
             return MicrohitOptionsResult(success=True, options=options)
 

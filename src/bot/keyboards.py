@@ -224,7 +224,9 @@ def microhit_options_keyboard(
     for option in options:
         # Use emoji numbers for better UX
         emoji_numbers = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
-        emoji = emoji_numbers[option.index - 1] if option.index <= 5 else f"{option.index}."
+        emoji = (
+            emoji_numbers[option.index - 1] if option.index <= 5 else f"{option.index}."
+        )
 
         builder.button(
             text=f"{emoji} Вариант {option.index}",

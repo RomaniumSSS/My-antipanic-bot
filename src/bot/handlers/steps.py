@@ -94,9 +94,7 @@ async def step_done(
     result = await complete_step_use_case.execute(step_id, user)
 
     if not result.success:
-        await callback.message.edit_text(
-            f"Ошибка: {result.error_message}"
-        )
+        await callback.message.edit_text(f"Ошибка: {result.error_message}")
         return
 
     # 3. Проверяем, вызвано ли из evening flow или antipanic
@@ -162,8 +160,7 @@ async def step_done(
                 if pending_steps:
                     pending_ids = [s.id for s in pending_steps]
                     await callback.message.edit_text(
-                        f"*Шаги на сегодня:*\n{steps_text}\n\n"
-                        f"+{result.xp_earned} XP",
+                        f"*Шаги на сегодня:*\n{steps_text}\n\n+{result.xp_earned} XP",
                         reply_markup=steps_list_keyboard(pending_ids),
                     )
                 else:
@@ -251,9 +248,7 @@ async def step_skip(
         result = await skip_step_use_case.execute(step_id, user, reason="-")
 
         if not result.success:
-            await callback.message.edit_text(
-                f"Ошибка: {result.error_message}"
-            )
+            await callback.message.edit_text(f"Ошибка: {result.error_message}")
             return
 
         data = await state.get_data()
@@ -386,7 +381,9 @@ async def handle_paywall_choice(
     user = await User.get_or_none(telegram_id=callback.from_user.id)
     if not user:
         await state.clear()
-        await callback.message.edit_text("Ошибка: пользователь не найден. Напиши /start")
+        await callback.message.edit_text(
+            "Ошибка: пользователь не найден. Напиши /start"
+        )
         return
 
     if callback_data.action == PaywallAction.accept:
@@ -446,6 +443,6 @@ async def step_stuck(
     from src.bot.keyboards import blocker_keyboard
 
     await callback.message.edit_text(
-        f"🆘 Застрял на: *{step.title}*\n\n" "Что мешает?",
+        f"🆘 Застрял на: *{step.title}*\n\nЧто мешает?",
         reply_markup=blocker_keyboard(),
     )

@@ -8,7 +8,6 @@ Handlers вызывают use-case и получают результат.
 import logging
 from dataclasses import dataclass
 from datetime import date
-from typing import Optional
 
 from src.core.domain.step_rules import can_skip_step
 from src.database.models import User
@@ -33,7 +32,7 @@ class SkipStepUseCase:
         step_id: int,
         user: User,
         reason: str = "-",
-        today: Optional[date] = None,
+        today: date | None = None,
     ) -> StepSkipResult:
         """
         Пропустить шаг.
@@ -72,9 +71,7 @@ class SkipStepUseCase:
         daily_log = await daily_log_repo.get_or_create_daily_log(user, today)
         await daily_log_repo.log_step_skip(daily_log, step_id, reason)
 
-        logger.info(
-            f"Step {step_id} skipped by user {user.telegram_id}: {reason}"
-        )
+        logger.info(f"Step {step_id} skipped by user {user.telegram_id}: {reason}")
 
         return StepSkipResult(success=True)
 
@@ -98,9 +95,7 @@ class SkipStepUseCase:
                 return
 
             # Считаем выполненные шаги
-            completed_count = sum(
-                1 for s in all_steps if s.status == "completed"
-            )
+            completed_count = sum(1 for s in all_steps if s.status == "completed")
 
             # Рассчитываем прогресс
             new_progress = int((completed_count / total_count) * 100)
@@ -137,6 +132,4 @@ class SkipStepUseCase:
                 f"({completed_count}/{total_count})"
             )
         except Exception as e:
-            logger.error(
-                f"Failed to update stage progress for stage {stage_id}: {e}"
-            )
+            logger.error(f"Failed to update stage progress for stage {stage_id}: {e}")

@@ -6,7 +6,6 @@ AICODE-NOTE: Чистые функции БЕЗ доступа к БД, БЕЗ s
 """
 
 from datetime import date
-from typing import Tuple
 
 from src.database.models import Step, User
 
@@ -36,7 +35,7 @@ def calculate_level(total_xp: int) -> int:
     return int(math.sqrt(total_xp / 100))
 
 
-def calculate_streak(user: User, today: date) -> Tuple[int, bool]:
+def calculate_streak(user: User, today: date) -> tuple[int, bool]:
     """
     Рассчитать текущий streak пользователя.
 

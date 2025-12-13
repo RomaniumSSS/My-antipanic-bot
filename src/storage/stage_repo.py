@@ -4,12 +4,10 @@ Stage Repository - тупые CRUD операции для Stage модели.
 AICODE-NOTE: Репозиторий содержит только доступ к данным, БЕЗ бизнес-логики.
 """
 
-from typing import Optional
-
 from src.database.models import Stage
 
 
-async def get_stage(stage_id: int) -> Optional[Stage]:
+async def get_stage(stage_id: int) -> Stage | None:
     """Получить этап по ID."""
     return await Stage.get_or_none(id=stage_id).prefetch_related("goal")
 

@@ -13,7 +13,6 @@ Handler is now thin - uses ResolveStuckUseCase for business logic.
 """
 
 import logging
-from datetime import date
 
 from aiogram import F, Router
 from aiogram.dispatcher.event.bases import SkipHandler
@@ -33,12 +32,11 @@ from src.bot.keyboards import (
     main_menu_keyboard,
     microhit_feedback_keyboard,
     microhit_options_keyboard,
-    steps_list_keyboard,
 )
 from src.bot.states import StuckStates
 from src.core.domain.stuck_rules import get_blocker_emoji
 from src.core.use_cases.resolve_stuck import resolve_stuck_use_case
-from src.database.models import DailyLog, Goal, Step, User
+from src.database.models import Goal, Step, User
 
 logger = logging.getLogger(__name__)
 
@@ -187,7 +185,11 @@ async def generate_and_show_microhit_options(
         return
 
     options = result.options
-    blocker_key = BlockerType(blocker_type) if blocker_type in [b.value for b in BlockerType] else BlockerType.unclear
+    blocker_key = (
+        BlockerType(blocker_type)
+        if blocker_type in [b.value for b in BlockerType]
+        else BlockerType.unclear
+    )
     blocker_emoji = get_blocker_emoji(blocker_type)
 
     # Build message with all options listed
@@ -207,7 +209,9 @@ async def generate_and_show_microhit_options(
         blocker_type=blocker_type,
         stuck_step_id=step_id,
     )
-    await state.set_state(StuckStates.waiting_for_blocker)  # Reuse state for option selection
+    await state.set_state(
+        StuckStates.waiting_for_blocker
+    )  # Reuse state for option selection
 
     # Show options keyboard
     options_markup = microhit_options_keyboard(options, blocker_key, step_id)
@@ -262,9 +266,7 @@ async def microhit_option_selected(
     await callback.message.edit_text(result_text, reply_markup=feedback_markup)
     await state.clear()
 
-    logger.info(
-        f"User selected microhit option {index} for blocker='{blocker.value}'"
-    )
+    logger.info(f"User selected microhit option {index} for blocker='{blocker.value}'")
 
 
 @router.callback_query(MicrohitFeedbackCallback.filter())
@@ -322,9 +324,7 @@ async def microhit_feedback(
         # Get active goal for context
         active_goal = await Goal.filter(user=user, status="active").first()
         if not active_goal:
-            await callback.message.edit_text(
-                "Не нашёл активную цель. Напиши /start."
-            )
+            await callback.message.edit_text("Не нашёл активную цель. Напиши /start.")
             return
 
         # Get step title

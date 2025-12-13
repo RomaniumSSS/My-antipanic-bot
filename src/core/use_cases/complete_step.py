@@ -8,7 +8,6 @@ Handlers вызывают use-case и получают результат.
 import logging
 from dataclasses import dataclass
 from datetime import date
-from typing import Optional
 
 from src.core.domain.gamification import calculate_streak, calculate_xp_reward
 from src.core.domain.step_rules import can_complete_step
@@ -34,7 +33,7 @@ class CompleteStepUseCase:
     """Use-case для выполнения шага."""
 
     async def execute(
-        self, step_id: int, user: User, today: Optional[date] = None
+        self, step_id: int, user: User, today: date | None = None
     ) -> StepCompletionResult:
         """
         Выполнить шаг.
@@ -53,9 +52,7 @@ class CompleteStepUseCase:
         # 1. Получить шаг
         step = await step_repo.get_step(step_id)
         if not step:
-            return StepCompletionResult(
-                success=False, error_message="Шаг не найден"
-            )
+            return StepCompletionResult(success=False, error_message="Шаг не найден")
 
         # 2. Проверить правила (домейн)
         if not can_complete_step(step):
@@ -117,9 +114,7 @@ class CompleteStepUseCase:
                 return
 
             # Считаем выполненные шаги
-            completed_count = sum(
-                1 for s in all_steps if s.status == "completed"
-            )
+            completed_count = sum(1 for s in all_steps if s.status == "completed")
 
             # Рассчитываем прогресс
             new_progress = int((completed_count / total_count) * 100)
@@ -156,6 +151,4 @@ class CompleteStepUseCase:
                 f"({completed_count}/{total_count})"
             )
         except Exception as e:
-            logger.error(
-                f"Failed to update stage progress for stage {stage_id}: {e}"
-            )
+            logger.error(f"Failed to update stage progress for stage {stage_id}: {e}")

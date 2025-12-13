@@ -41,9 +41,7 @@ class ErrorHandlingMiddleware(BaseMiddleware):
             logger.exception(f"Error handling {type(event).__name__}: {e}")
 
             # Отправляем пользователю дружелюбное сообщение
-            error_message = (
-                "❌ Произошла ошибка. Попробуй ещё раз или напиши /start"
-            )
+            error_message = "❌ Произошла ошибка. Попробуй ещё раз или напиши /start"
 
             try:
                 if isinstance(event, Message):

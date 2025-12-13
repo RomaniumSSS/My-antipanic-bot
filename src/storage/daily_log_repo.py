@@ -5,7 +5,6 @@ AICODE-NOTE: Репозиторий содержит только доступ �
 """
 
 from datetime import date
-from typing import Optional
 
 from src.database.models import DailyLog, Step, User
 
@@ -16,7 +15,7 @@ async def get_or_create_daily_log(user: User, log_date: date) -> DailyLog:
     return daily_log
 
 
-async def get_daily_log(user: User, log_date: date) -> Optional[DailyLog]:
+async def get_daily_log(user: User, log_date: date) -> DailyLog | None:
     """Получить DailyLog за указанную дату."""
     return await DailyLog.get_or_none(user=user, date=log_date)
 

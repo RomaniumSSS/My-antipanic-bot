@@ -5,12 +5,10 @@ AICODE-NOTE: Репозиторий содержит только доступ �
 Бизнес-логика (расчет streak, level) находится в core/domain/gamification.py.
 """
 
-from typing import Optional
-
 from src.database.models import User
 
 
-async def get_user(telegram_id: int) -> Optional[User]:
+async def get_user(telegram_id: int) -> User | None:
     """Получить пользователя по telegram_id."""
     return await User.get_or_none(telegram_id=telegram_id)
 

@@ -58,9 +58,7 @@ async def main():
     # FSM Storage: Redis для production, Memory для development
     if config.ENVIRONMENT == "production":
         redis = Redis.from_url(
-            config.redis_url,
-            decode_responses=True,
-            encoding="utf-8"
+            config.redis_url, decode_responses=True, encoding="utf-8"
         )
         storage = RedisStorage(redis=redis)
         logger.info(f"Using RedisStorage at {config.REDIS_HOST}:{config.REDIS_PORT}")

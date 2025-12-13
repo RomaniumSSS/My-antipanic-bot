@@ -315,8 +315,7 @@ class AIService:
     ) -> str:
         """Диагноз после квиза зависания."""
         answers_text = "\n".join(
-            f"- Q{item.get('number')}"
-            f" ({item.get('question')}): {item.get('answer')}"
+            f"- Q{item.get('number')} ({item.get('question')}): {item.get('answer')}"
             for item in answers
         )
         prompt = f"Уровень зависимости: {score:.0f}\n{answers_text}"

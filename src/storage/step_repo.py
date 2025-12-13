@@ -6,12 +6,11 @@ AICODE-NOTE: Репозиторий содержит только доступ �
 """
 
 from datetime import date, datetime
-from typing import Optional
 
 from src.database.models import Step
 
 
-async def get_step(step_id: int) -> Optional[Step]:
+async def get_step(step_id: int) -> Step | None:
     """Получить шаг по ID."""
     return await Step.get_or_none(id=step_id).prefetch_related("stage__goal")
 

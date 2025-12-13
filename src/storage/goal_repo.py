@@ -7,14 +7,13 @@ no business logic. Use-cases orchestrate these operations.
 
 import logging
 from datetime import date
-from typing import Optional
 
 from src.database.models import Goal, Stage, User
 
 logger = logging.getLogger(__name__)
 
 
-async def get_active_goal(user: User) -> Optional[Goal]:
+async def get_active_goal(user: User) -> Goal | None:
     """
     Get first active goal for user.
 
@@ -40,12 +39,12 @@ async def get_active_goals(user: User) -> list[Goal]:
     return await Goal.filter(user=user, status="active").order_by("id").all()
 
 
-async def get_goal(goal_id: int) -> Optional[Goal]:
+async def get_goal(goal_id: int) -> Goal | None:
     """Get goal by ID."""
     return await Goal.get_or_none(id=goal_id)
 
 
-async def get_active_stage(goal: Goal) -> Optional[Stage]:
+async def get_active_stage(goal: Goal) -> Stage | None:
     """
     Get current active stage for a goal.
 
@@ -58,7 +57,9 @@ async def get_active_stage(goal: Goal) -> Optional[Stage]:
     Returns:
         Active Stage or None if no active stages exist
     """
-    return await Stage.filter(goal=goal, status="active").order_by("-order", "-id").first()
+    return (
+        await Stage.filter(goal=goal, status="active").order_by("-order", "-id").first()
+    )
 
 
 async def get_all_active_stages(goal: Goal) -> list[Stage]:
@@ -71,7 +72,9 @@ async def get_all_active_stages(goal: Goal) -> list[Stage]:
     Returns:
         List of active Stages ordered by order DESC, id DESC
     """
-    return await Stage.filter(goal=goal, status="active").order_by("-order", "-id").all()
+    return (
+        await Stage.filter(goal=goal, status="active").order_by("-order", "-id").all()
+    )
 
 
 async def get_pending_stages(goal: Goal) -> list[Stage]:

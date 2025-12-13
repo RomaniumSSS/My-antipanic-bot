@@ -7,7 +7,6 @@ These rules are used by use-cases to determine step generation parameters.
 
 from typing import Literal
 
-
 StepDifficulty = Literal["easy", "medium", "hard"]
 
 

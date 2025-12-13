@@ -14,7 +14,6 @@ import logging
 import random
 from dataclasses import dataclass
 from datetime import date
-from typing import Optional
 
 from src.core.domain.step_generation import (
     calculate_xp_for_step,
@@ -44,7 +43,7 @@ class StageEnsureResult:
     """Result of ensuring active stage exists."""
 
     success: bool
-    stage: Optional[Stage] = None
+    stage: Stage | None = None
     error_message: str = ""
 
 
@@ -53,7 +52,7 @@ class BodyStepResult:
     """Result of creating body micro-action step."""
 
     success: bool
-    step: Optional[Step] = None
+    step: Step | None = None
     action_text: str = ""
     error_message: str = ""
 
@@ -63,7 +62,7 @@ class TaskStepResult:
     """Result of creating task micro-action step."""
 
     success: bool
-    step: Optional[Step] = None
+    step: Step | None = None
     error_message: str = ""
 
 
@@ -111,7 +110,9 @@ class AssignMorningStepsUseCase:
         if not current:
             pending_stages = await goal_repo.get_pending_stages(goal)
             if pending_stages:
-                current = await goal_repo.update_stage_status(pending_stages[0], "active")
+                current = await goal_repo.update_stage_status(
+                    pending_stages[0], "active"
+                )
             else:
                 # No pending stages - check if goal is completed or needs default stage
                 all_stages = await goal_repo.get_all_stages(goal)
@@ -132,8 +133,13 @@ class AssignMorningStepsUseCase:
                     )
                 else:
                     # All stages exist, check if all completed
-                    completed_count = sum(1 for s in all_stages if s.status == "completed")
-                    if completed_count == len(all_stages) and goal.status != "onboarding":
+                    completed_count = sum(
+                        1 for s in all_stages if s.status == "completed"
+                    )
+                    if (
+                        completed_count == len(all_stages)
+                        and goal.status != "onboarding"
+                    ):
                         # Mark goal as completed
                         goal.status = "completed"
                         await goal_repo.save_goal(goal)
@@ -272,7 +278,9 @@ class AssignMorningStepsUseCase:
 
         # 2. Calculate energy and parameters
         energy_hint = energy_from_tension(tension)
-        mood_hint = f"antipanic:tension={tension}" if tension is not None else "antipanic"
+        mood_hint = (
+            f"antipanic:tension={tension}" if tension is not None else "antipanic"
+        )
         difficulty = select_step_difficulty(energy_hint)
 
         # 3. Generate step using AI

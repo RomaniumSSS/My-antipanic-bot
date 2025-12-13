@@ -125,7 +125,7 @@ async def cmd_status(message: Message) -> None:
 
     if not active_goal:
         await message.answer(
-            "У тебя пока нет активной цели.\n" "Напиши /start чтобы создать.",
+            "У тебя пока нет активной цели.\nНапиши /start чтобы создать.",
             reply_markup=main_menu_keyboard(),
         )
         return

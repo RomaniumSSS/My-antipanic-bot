@@ -231,7 +231,7 @@ async def handle_tension_after(
     await state.set_state(AntipanicSession.offered_deepen)
 
     await callback.message.edit_text(
-        f"{support}\n\n" "Готов попробовать ещё один шаг на 15–30 минут или завершаем?",
+        f"{support}\n\nГотов попробовать ещё один шаг на 15–30 минут или завершаем?",
         reply_markup=deepen_keyboard(),
     )
 
