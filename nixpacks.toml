@@ -10,4 +10,4 @@ cmds = [
 ]
 
 [start]
-cmd = ". /opt/venv/bin/activate && python -m src.main"
+cmd = ". /opt/venv/bin/activate && aerich upgrade && python -m src.main"
