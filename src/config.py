@@ -78,18 +78,15 @@ class Settings(BaseSettings):
         """
         # 1. Use DATABASE_URL if provided (Railway/Render)
         if self.DATABASE_URL:
-            url = self.DATABASE_URL
-            # Railway uses postgres://, but asyncpg needs postgresql://
-            if url.startswith("postgres://"):
-                url = url.replace("postgres://", "postgresql://", 1)
-            return url
+            # Tortoise ORM uses postgres:// scheme (not postgresql://)
+            return self.DATABASE_URL
 
         # 2. Production: construct from individual vars
         if self.ENVIRONMENT == "production":
             if not self.POSTGRES_PASSWORD:
                 raise ValueError("POSTGRES_PASSWORD required for production")
             return (
-                f"postgresql://{self.POSTGRES_USER}:"
+                f"postgres://{self.POSTGRES_USER}:"
                 f"{self.POSTGRES_PASSWORD.get_secret_value()}"
                 f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
             )
@@ -101,7 +98,7 @@ class Settings(BaseSettings):
     def redis_url(self) -> str:
         """
         Get Redis URL.
-        
+
         Priority:
         1. REDIS_URL env var (Railway/Render format)
         2. Redis individual vars (development)
@@ -109,7 +106,7 @@ class Settings(BaseSettings):
         # 1. Use REDIS_URL if provided (Railway/Render)
         if self.REDIS_URL:
             return self.REDIS_URL
-        
+
         # 2. Development: construct from individual vars
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
