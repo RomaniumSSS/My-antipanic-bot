@@ -92,8 +92,9 @@ async def main():
     if config.ENVIRONMENT == "production" and config.WEBHOOK_URL:
         from aiohttp import web
 
-        # Set webhook
-        webhook_url = f"{config.WEBHOOK_URL}{config.WEBHOOK_PATH}"
+        # Set webhook (ensure no double slashes)
+        base_url = config.WEBHOOK_URL.rstrip("/")
+        webhook_url = f"{base_url}{config.WEBHOOK_PATH}"
         await bot.set_webhook(
             webhook_url,
             drop_pending_updates=True,
