@@ -14,10 +14,20 @@ import {
   type MicrohitOption,
 } from '@/lib/api';
 
+// Check if we're in development/testing mode (browser without Telegram)
+const isTestMode = () => {
+  if (typeof window === 'undefined') return false;
+  // Allow test mode via URL param or non-Telegram environment in development
+  const urlParams = new URLSearchParams(window.location.search);
+  return urlParams.get('test') === '1' || 
+    (process.env.NODE_ENV === 'development' && !isTelegramWebApp());
+};
+
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [testMode, setTestMode] = useState(false);
 
   // Microhit state
   const [stepTitle, setStepTitle] = useState('');
@@ -28,11 +38,28 @@ export default function Home() {
   const [completing, setCompleting] = useState(false);
 
   useEffect(() => {
+    // Check for test mode first
+    if (isTestMode()) {
+      setTestMode(true);
+      // In test mode, use mock user
+      setUser({
+        telegram_id: 123456789,
+        first_name: 'Test User',
+        username: 'testuser',
+        xp: 150,
+        level: 3,
+        streak_days: 5,
+        timezone_offset: 0,
+      });
+      setLoading(false);
+      return;
+    }
+
     // Initialize Telegram WebApp
     const webApp = initTelegramWebApp();
 
     if (!isTelegramWebApp()) {
-      setError('This app only works inside Telegram');
+      setError('This app only works inside Telegram. Add ?test=1 to URL for testing.');
       setLoading(false);
       return;
     }
@@ -63,6 +90,19 @@ export default function Home() {
     try {
       setGenerating(true);
       setError(null);
+
+      // Mock response in test mode
+      if (testMode) {
+        await new Promise(resolve => setTimeout(resolve, 500)); // Simulate delay
+        setMicrohitOptions([
+          { index: 0, text: 'Open the document and read the first sentence' },
+          { index: 1, text: 'Write just one word to start' },
+          { index: 2, text: 'Set a 2-minute timer and work until it rings' },
+        ]);
+        setCurrentStepId(999);
+        return;
+      }
+
       const result = await generateMicrohit({
         step_title: stepTitle,
         blocker_type: blockerType,
@@ -82,6 +122,23 @@ export default function Home() {
     try {
       setCompleting(true);
       setError(null);
+
+      // Mock response in test mode
+      if (testMode) {
+        await new Promise(resolve => setTimeout(resolve, 300)); // Simulate delay
+        if (user) {
+          setUser({
+            ...user,
+            xp: user.xp + 10,
+            streak_days: user.streak_days + 1,
+          });
+        }
+        setMicrohitOptions([]);
+        setCurrentStepId(null);
+        setStepTitle('');
+        return;
+      }
+
       const result = await completeMicrohit(currentStepId);
 
       // Update user XP
@@ -136,6 +193,13 @@ export default function Home() {
 
   return (
     <main className="min-h-screen p-4 pb-20">
+      {/* Test Mode Banner */}
+      {testMode && (
+        <div className="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded-lg text-sm text-center">
+          🧪 Test Mode — API calls are mocked. Remove <code>?test=1</code> for production.
+        </div>
+      )}
+
       {/* Profile Section */}
       {user && (
         <div className="mb-8 p-4 bg-secondary-bg rounded-lg">
