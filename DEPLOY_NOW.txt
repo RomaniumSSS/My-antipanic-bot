@@ -1,0 +1,47 @@
+┌─────────────────────────────────────────────────────────────┐
+│           🚀 ДЕПЛОЙ TMA — ПОШАГОВАЯ ИНСТРУКЦИЯ              │
+└─────────────────────────────────────────────────────────────┘
+
+📋 Что нужно сделать:
+
+1. VERCEL — Задеплоить TMA frontend
+   → Открой: https://vercel.com
+   → Add New → Project
+   → Import: My-antipanic-bot
+   → Root Directory: tma-frontend ⚠️ ВАЖНО!
+   → Env var: NEXT_PUBLIC_API_URL = https://твой-бот.railway.app
+   → Deploy
+   → Получишь URL: https://что-то.vercel.app
+
+2. @BOTFATHER — Настроить Web App
+   → Открой: https://t.me/BotFather
+   → /mybots → твой бот → Web App → Create
+   → URL: https://что-то.vercel.app (из Vercel)
+   → Short name: antipanic
+
+3. RAILWAY — Добавить TMA_URL
+   → Открой: https://railway.app
+   → Твой проект → Bot service → Variables
+   → Добавь: TMA_URL = https://что-то.vercel.app
+   → Бот автоматически перезапустится
+
+4. ПРОВЕРКА — Тестируй в Telegram
+   → Открой бота
+   → /start
+   → Должна появиться кнопка "📱 App"
+   → Нажми → TMA откроется
+
+┌─────────────────────────────────────────────────────────────┐
+│                    ✅ ГОТОВО!                                │
+└─────────────────────────────────────────────────────────────┘
+
+📚 Подробные инструкции:
+- VERCEL_DEPLOY_GUIDE.md — полная инструкция
+- QUICK_DEPLOY.md — краткая шпаргалка
+- docs/TMA_SETUP.md — документация
+
+⚠️ ВАЖНО:
+- Root Directory в Vercel ОБЯЗАТЕЛЬНО: tma-frontend
+- TMA открывается ТОЛЬКО через Telegram (не в браузере)
+- Если кнопка "📱 App" не появилась — подожди 1-2 мин
+
