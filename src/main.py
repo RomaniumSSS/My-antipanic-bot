@@ -151,8 +151,58 @@ async def main():
             stats = await reminders.process_reminders()
             return web.json_response({"status": "ok", "stats": stats})
 
+        # Add root endpoint (for browser access)
+        async def root(request: web.Request) -> web.Response:
+            return web.json_response(
+                {
+                    "service": "Antipanic Bot",
+                    "status": "running",
+                    "mode": "webhook",
+                    "docs": "Use Telegram to interact with the bot",
+                }
+            )
+
+        app.router.add_get("/", root)
         app.router.add_get("/health", health)
         app.router.add_get("/cron/tick", cron_tick)
+
+        # Mount FastAPI app for TMA API endpoints
+        from src.interfaces.api.main import app as fastapi_app
+        from aiohttp_asgi import ASGIResource
+
+        asgi_resource = ASGIResource(fastapi_app)
+        app.router.add_route("*", "/api{path_info:.*}", asgi_resource)
+        logger.info("FastAPI app mounted for /api/* routes")
+
+        # Configure CORS for aiohttp routes (needed for preflight OPTIONS requests)
+        import aiohttp_cors
+
+        cors_origins = ["http://localhost:3000"]
+        if config.TMA_URL:
+            cors_origins.append(config.TMA_URL)
+        # Allow all Railway subdomains
+        cors_origins.append("https://faithful-love-production-44e5.up.railway.app")
+
+        cors = aiohttp_cors.setup(
+            app,
+            defaults={
+                origin: aiohttp_cors.ResourceOptions(
+                    allow_credentials=True,
+                    expose_headers="*",
+                    allow_headers="*",
+                    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+                )
+                for origin in cors_origins
+            },
+        )
+
+        # Apply CORS to all routes
+        for route in list(app.router.routes()):
+            try:
+                cors.add(route)
+            except ValueError:
+                pass  # Route already has CORS or not applicable
+        logger.info(f"CORS configured for origins: {cors_origins}")
 
         # Startup hook for aiohttp
         async def on_app_startup(app: web.Application):
