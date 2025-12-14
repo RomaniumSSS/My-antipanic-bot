@@ -167,15 +167,15 @@ async def main():
         app.router.add_get("/cron/tick", cron_tick)
 
         # Mount FastAPI app for TMA API endpoints
-        # This allows all /api/* routes to be handled by FastAPI
+        # FastAPI handles /api/* routes
         from src.interfaces.api.main import app as fastapi_app
         from aiohttp_asgi import ASGIResource
 
-        # Правильный способ монтирования ASGI-приложения в aiohttp
+        # Create ASGI resource and mount it for all paths not handled by aiohttp
         asgi_resource = ASGIResource(fastapi_app)
-        app.router.register_resource(asgi_resource)
-        asgi_resource.lifespan_mount(app)
-        logger.info("FastAPI app mounted (TMA endpoints: /api/*)")
+        # Use add_route with path pattern for catch-all
+        app.router.add_route("*", "/api{path_info:.*}", asgi_resource)
+        logger.info("FastAPI app mounted for /api/* routes")
 
         # Startup hook for aiohttp
         async def on_app_startup(app: web.Application):
