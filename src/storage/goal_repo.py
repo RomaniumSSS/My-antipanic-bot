@@ -13,17 +13,20 @@ from src.database.models import Goal, Stage, User
 logger = logging.getLogger(__name__)
 
 
-async def get_active_goal(user: User) -> Goal | None:
+async def get_active_goal(user_id_or_user) -> Goal | None:
     """
     Get first active goal for user.
 
     Args:
-        user: User instance
+        user_id_or_user: User instance or telegram_id (int)
 
     Returns:
         Active Goal or None if no active goals exist
     """
-    return await Goal.filter(user=user, status="active").order_by("id").first()
+    # Support both User instance and telegram_id
+    if isinstance(user_id_or_user, int):
+        return await Goal.filter(user_id=user_id_or_user, status="active").order_by("id").first()
+    return await Goal.filter(user=user_id_or_user, status="active").order_by("id").first()
 
 
 async def get_active_goals(user: User) -> list[Goal]:
@@ -39,12 +42,17 @@ async def get_active_goals(user: User) -> list[Goal]:
     return await Goal.filter(user=user, status="active").order_by("id").all()
 
 
-async def get_goal(goal_id: int) -> Goal | None:
+async def get_goal_by_id(goal_id: int) -> Goal | None:
     """Get goal by ID."""
     return await Goal.get_or_none(id=goal_id)
 
 
-async def get_active_stage(goal: Goal) -> Stage | None:
+async def get_goal(goal_id: int) -> Goal | None:
+    """Get goal by ID (alias for backward compatibility)."""
+    return await get_goal_by_id(goal_id)
+
+
+async def get_active_stage(goal_or_id) -> Stage | None:
     """
     Get current active stage for a goal.
 
@@ -52,14 +60,15 @@ async def get_active_stage(goal: Goal) -> Stage | None:
     This matches the logic from session.ensure_active_stage().
 
     Args:
-        goal: Goal instance
+        goal_or_id: Goal instance or goal_id (int)
 
     Returns:
         Active Stage or None if no active stages exist
     """
-    return (
-        await Stage.filter(goal=goal, status="active").order_by("-order", "-id").first()
-    )
+    # Support both Goal instance and goal_id
+    if isinstance(goal_or_id, int):
+        return await Stage.filter(goal_id=goal_or_id, status="active").order_by("-order", "-id").first()
+    return await Stage.filter(goal=goal_or_id, status="active").order_by("-order", "-id").first()
 
 
 async def get_all_active_stages(goal: Goal) -> list[Stage]:

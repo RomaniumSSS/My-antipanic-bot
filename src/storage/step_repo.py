@@ -7,12 +7,17 @@ AICODE-NOTE: Репозиторий содержит только доступ �
 
 from datetime import date, datetime
 
-from src.database.models import Step
+from src.database.models import Stage, Step
 
 
 async def get_step(step_id: int) -> Step | None:
     """Получить шаг по ID."""
     return await Step.get_or_none(id=step_id).prefetch_related("stage__goal")
+
+
+async def get_stage(stage_id: int) -> Stage | None:
+    """Получить этап по ID."""
+    return await Stage.get_or_none(id=stage_id)
 
 
 async def get_steps_by_stage(stage_id: int) -> list[Step]:
