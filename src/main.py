@@ -37,12 +37,14 @@ async def on_startup(bot: Bot) -> None:
     try:
         conn = Tortoise.get_connection("default")
         # Проверяем и добавляем колонки если их нет
-        await conn.execute_script("""
+        await conn.execute_script(
+            """
             ALTER TABLE users
             ADD COLUMN IF NOT EXISTS reminders_enabled BOOLEAN DEFAULT TRUE,
             ADD COLUMN IF NOT EXISTS next_morning_reminder_at TIMESTAMPTZ,
             ADD COLUMN IF NOT EXISTS next_evening_reminder_at TIMESTAMPTZ;
-        """)
+        """
+        )
         logger.info("Database schema updated (reminders fields)")
     except Exception as e:
         logger.warning(f"Schema migration skipped or failed: {e}")
@@ -71,7 +73,7 @@ async def main():
             config.redis_url, decode_responses=True, encoding="utf-8"
         )
         storage = RedisStorage(redis=redis)
-        logger.info(f"Using RedisStorage at {config.REDIS_HOST}:{config.REDIS_PORT}")
+        logger.info(f"Using RedisStorage: {config.redis_url}")
     else:
         storage = MemoryStorage()
         logger.info("Using MemoryStorage (development mode)")
