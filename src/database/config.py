@@ -57,3 +57,19 @@ TORTOISE_ORM = {
         },
     },
 }
+
+
+async def init_db():
+    """Initialize database connection for FastAPI."""
+    from tortoise import Tortoise
+
+    await Tortoise.init(config=TORTOISE_ORM)
+    logger.info("Database initialized")
+
+
+async def close_db():
+    """Close database connection for FastAPI."""
+    from tortoise import Tortoise
+
+    await Tortoise.close_connections()
+    logger.info("Database connections closed")

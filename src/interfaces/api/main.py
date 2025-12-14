@@ -3,9 +3,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.config import settings
+from src.config import config as settings
 from src.database.config import close_db, init_db
-from src.interfaces.api.routers import goal, history, microhit, stats, user
+from src.interfaces.api.routers import dev, goal, history, microhit, stats, user
 
 app = FastAPI(
     title="Antipanic API",
@@ -31,6 +31,10 @@ app.include_router(goal.router, prefix="/api", tags=["goals"])
 app.include_router(microhit.router, prefix="/api", tags=["microhit"])
 app.include_router(stats.router, prefix="/api", tags=["stats"])
 app.include_router(history.router, prefix="/api", tags=["history"])
+
+# Development-only router (remove in production)
+if settings.ENVIRONMENT != "production":
+    app.include_router(dev.router, tags=["development"])
 
 
 @app.on_event("startup")

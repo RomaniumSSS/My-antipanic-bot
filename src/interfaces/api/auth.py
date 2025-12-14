@@ -12,7 +12,7 @@ from urllib.parse import parse_qs, unquote
 
 from fastapi import Header, HTTPException
 
-from src.config import settings
+from src.config import config as settings
 from src.database.models import User
 
 
@@ -49,7 +49,7 @@ def verify_telegram_auth(init_data: str) -> dict:
     # Calculate secret key: HMAC-SHA256(bot_token, "WebAppData")
     secret_key = hmac.new(
         key=b"WebAppData",
-        msg=settings.BOT_TOKEN.encode(),
+        msg=settings.BOT_TOKEN.get_secret_value().encode(),
         digestmod=hashlib.sha256,
     ).digest()
 

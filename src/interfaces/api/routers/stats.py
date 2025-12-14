@@ -4,7 +4,7 @@ from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends
 
-from src.database.models import DailyLog, Step, User
+from src.database.models import DailyLog, User
 from src.interfaces.api import schemas
 from src.interfaces.api.auth import get_current_user
 

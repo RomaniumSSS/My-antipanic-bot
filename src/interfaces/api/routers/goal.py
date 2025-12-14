@@ -1,5 +1,4 @@
 """Goal API endpoints."""
-
 from fastapi import APIRouter, Depends, HTTPException
 
 from src.database.models import User
