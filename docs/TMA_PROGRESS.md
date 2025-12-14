@@ -21,7 +21,7 @@
   - [x] 2.6: Финальная проверка ✅
 - [x] Этап 3: Деплой бота + БД на Railway ✅
 - [x] Этап 4.1: FastAPI бэкенд для TMA ✅
-- [ ] Этап 4.2: TMA фронт (Next.js на Vercel)
+- [x] Этап 4.2: TMA фронт (Next.js на Vercel) ✅
 - [ ] Этап 4.3: Подключить TMA к боту
 - [ ] Этап 5: Проактивность (1 день)
 
@@ -915,6 +915,142 @@ FastAPI бэкенд готов для TMA:
 
 ---
 
+## ✅ Этап 4.2: TMA фронт (Next.js на Vercel) (ЗАВЕРШЕН)
+
+**Статус**: Завершен
+**Дата**: 2025-12-14
+**Коммит**: (будет создан) - feat(stage-4.2): add Next.js TMA frontend
+
+### Что сделано:
+
+#### 4.2.1. Структура Next.js проекта ✓
+
+Создана полная структура TMA frontend:
+```
+tma-frontend/
+├── app/
+│   ├── layout.tsx      # Root layout с Telegram SDK
+│   ├── page.tsx        # Main page (профиль + микро-удары)
+│   └── globals.css     # Global styles с Telegram theme
+├── lib/
+│   ├── api.ts          # FastAPI client
+│   └── telegram.ts     # Telegram WebApp SDK utilities
+├── components/         # React components (future)
+├── public/             # Static assets
+├── package.json
+├── tsconfig.json
+├── tailwind.config.ts
+├── next.config.js
+├── vercel.json
+├── .env.example
+└── README.md
+```
+
+#### 4.2.2. Технологии ✓
+
+- ✅ Next.js 14 (App Router)
+- ✅ TypeScript
+- ✅ Tailwind CSS с Telegram theme variables
+- ✅ @telegram-apps/sdk для интеграции с Telegram
+- ✅ Fetch API для HTTP запросов
+
+#### 4.2.3. Реализованный функционал ✓
+
+**1. Профиль пользователя** (`app/page.tsx`):
+- Отображение имени, username
+- XP, level, streak days
+- Автоматическая загрузка из `/api/me`
+
+**2. Генератор микро-действий** (`app/page.tsx`):
+- Форма ввода задачи (step_title)
+- Выбор типа блокера (fear, overwhelm, unclear, boring, distraction)
+- Кнопка генерации микро-ударов
+- Отображение 2-3 вариантов микро-действий
+- Кнопка "I Did It! +XP" для выполнения
+- Кнопка "More Options" для новой генерации
+
+**3. Telegram WebApp SDK** (`lib/telegram.ts`):
+- `initTelegramWebApp()` - инициализация и expand
+- `getInitData()` - получение initData для auth
+- `getTelegramUser()` - информация о пользователе
+- `isTelegramWebApp()` - проверка запуска в Telegram
+- Типизация для Telegram WebApp API
+
+**4. API Client** (`lib/api.ts`):
+- `getMe()` - GET /api/me
+- `generateMicrohit()` - POST /api/microhit/generate
+- `completeMicrohit()` - POST /api/microhit/complete
+- Автоматическая отправка `X-Telegram-Init-Data` header
+- TypeScript типы для всех responses
+
+#### 4.2.4. Особенности реализации ✓
+
+**Telegram Theme Integration**:
+```css
+/* tailwind.config.ts */
+colors: {
+  primary: "var(--tg-theme-button-color)",
+  "bg-color": "var(--tg-theme-bg-color)",
+  "text-color": "var(--tg-theme-text-color)",
+  ...
+}
+```
+
+**CSP Headers для TMA** (`next.config.js`):
+```javascript
+headers: [
+  {
+    key: 'Content-Security-Policy',
+    value: "default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:;"
+  }
+]
+```
+
+**Authentication Flow**:
+1. Telegram WebApp автоматически предоставляет `initData`
+2. Frontend получает через `window.Telegram.WebApp.initData`
+3. Отправляет в header `X-Telegram-Init-Data` на каждый запрос
+4. FastAPI валидирует подпись и извлекает user
+
+#### 4.2.5. Настройка деплоя ✓
+
+**Vercel конфигурация** (`vercel.json`):
+```json
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "framework": "nextjs"
+}
+```
+
+**Environment Variables**:
+- `NEXT_PUBLIC_API_URL` - URL FastAPI backend (Railway)
+
+**Инструкции по деплою** (`tma-frontend/README.md`):
+- Установка и запуск локально
+- Деплой на Vercel через CLI или Dashboard
+- Настройка Bot WebApp URL через @BotFather
+- Troubleshooting tips
+
+### Результат:
+
+**Этап 4.2 ЗАВЕРШЕН ПОЛНОСТЬЮ!**
+
+Next.js TMA frontend готов:
+- ✅ Полноценный UI для профиля + микро-удары
+- ✅ Telegram WebApp SDK интеграция
+- ✅ API клиент с автоматической аутентификацией
+- ✅ Tailwind CSS с Telegram theme
+- ✅ TypeScript типизация
+- ✅ Готов к деплою на Vercel
+- ✅ Документация в README.md
+
+**Следующий шаг**: Этап 4.3 - Подключить TMA к боту
+
+**Инструкция**: См. `tma-frontend/README.md`
+
+---
+
 ### Критические правила для Этапа 2:
 
 1. ✅ **НЕ "переписать всё"** — по одному сценарию, прогнать руками, закоммитить
@@ -963,4 +1099,4 @@ FastAPI бэкенд готов для TMA:
 
 ---
 
-**Последнее обновление**: 2025-12-14, **Этап 4.1 ПОЛНОСТЬЮ ЗАВЕРШЕН** (FastAPI бэкенд для TMA) ✅
+**Последнее обновление**: 2025-12-14, **Этап 4.2 ПОЛНОСТЬЮ ЗАВЕРШЕН** (Next.js TMA фронт) ✅
