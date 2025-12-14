@@ -5,7 +5,12 @@
 НЕ используй raw строки для callback_data!
 """
 
-from aiogram.types import InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
+from aiogram.types import (
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+    WebAppInfo,
+)
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.bot.callbacks.data import (
@@ -63,8 +68,6 @@ def simple_energy_keyboard() -> InlineKeyboardMarkup:
     )
     builder.adjust(3)
     return builder.as_markup()
-
-
 
 
 def blocker_keyboard() -> InlineKeyboardMarkup:
@@ -223,12 +226,26 @@ def low_energy_keyboard() -> InlineKeyboardMarkup:
 
 
 def main_menu_keyboard() -> ReplyKeyboardMarkup:
-    """Главное меню с ключевыми командами."""
+    """
+    Главное меню с ключевыми командами.
+
+    Автоматически добавляет WebApp кнопку если TMA_URL задан в config.
+    """
+    from src.config import config
+
+    keyboard_rows = [
+        [KeyboardButton(text="Утро"), KeyboardButton(text="Застрял")],
+        [KeyboardButton(text="Вечер"), KeyboardButton(text="Статус")],
+    ]
+
+    # Добавляем WebApp кнопку если TMA_URL задан
+    if config.TMA_URL:
+        keyboard_rows.append(
+            [KeyboardButton(text="📱 App", web_app=WebAppInfo(url=config.TMA_URL))]
+        )
+
     return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="Утро"), KeyboardButton(text="Застрял")],
-            [KeyboardButton(text="Вечер"), KeyboardButton(text="Статус")],
-        ],
+        keyboard=keyboard_rows,
         resize_keyboard=True,
         input_field_placeholder="Утро — план дня, Застрял — быстрая помощь",
     )

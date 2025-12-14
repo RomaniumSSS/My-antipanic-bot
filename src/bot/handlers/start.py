@@ -9,10 +9,16 @@ AICODE-NOTE: Упрощено для Этапа 1.2 TMA миграции.
 from aiogram import F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message
+from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+    WebAppInfo,
+)
 
 from src.bot.keyboards import main_menu_keyboard
 from src.bot.states import OnboardingStates
+from src.config import config
 from src.database.models import Goal, User
 
 router = Router()
@@ -100,14 +106,20 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
 @router.message(Command("help"))
 async def cmd_help(message: Message) -> None:
     """Краткая справка по командам."""
-    await message.answer(
+    help_text = (
         "*Команды:*\n\n"
         "/morning — план на день\n"
         "/stuck — помощь при ступоре\n"
         "/status — прогресс\n"
         "/evening — итоги дня\n"
-        "/start — новая цель"
+        "/start — новая цель\n"
     )
+
+    # Добавляем /app только если TMA настроен
+    if config.TMA_URL:
+        help_text += "/app — открыть приложение"
+
+    await message.answer(help_text)
 
 
 @router.message(Command("id"))
@@ -152,4 +164,43 @@ async def cmd_status(message: Message) -> None:
         f"🔥 Streak: {user.streak_days} дней\n"
         f"⭐ XP: {user.xp}",
         reply_markup=main_menu_keyboard(),
+    )
+
+
+@router.message(Command("app"))
+async def cmd_app(message: Message) -> None:
+    """
+    Открыть Telegram Mini App (TMA).
+
+    AICODE-NOTE: Stage 4.3 - интеграция TMA с ботом.
+    Кнопка запускает Next.js фронтенд (deployed на Vercel),
+    который использует FastAPI backend для API calls.
+    """
+    if not config.TMA_URL:
+        await message.answer(
+            "📱 Telegram Mini App пока не настроен.\n\n"
+            "Администратор может настроить его через переменную окружения `TMA_URL`."
+        )
+        return
+
+    # Создаём inline кнопку для запуска WebApp
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="🚀 Открыть App",
+                    web_app=WebAppInfo(url=config.TMA_URL),
+                )
+            ]
+        ]
+    )
+
+    await message.answer(
+        "📱 *Telegram Mini App*\n\n"
+        "Открой приложение для быстрого доступа к:\n"
+        "• Профиль и статистика\n"
+        "• Генератор микро-действий\n"
+        "• История выполненных шагов\n\n"
+        "Нажми кнопку ниже или используй кнопку *📱 App* в меню.",
+        reply_markup=keyboard,
     )

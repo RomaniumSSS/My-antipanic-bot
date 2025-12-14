@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     # Cron token for /cron/tick endpoint (generate random string)
     CRON_TOKEN: SecretStr | None = None
 
+    # Telegram Mini App (TMA) URL
+    TMA_URL: str | None = None
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     @field_validator("ALLOWED_USER_IDS", mode="before")
