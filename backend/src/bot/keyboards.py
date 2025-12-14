@@ -1,0 +1,331 @@
+"""
+Клавиатуры для Antipanic Bot.
+
+Все клавиатуры используют CallbackData фабрики из src.bot.callbacks.data.
+НЕ используй raw строки для callback_data!
+"""
+
+from aiogram.types import (
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+    WebAppInfo,
+)
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+from src.bot.callbacks.data import (
+    BlockerCallback,
+    BlockerType,
+    DeepenAction,
+    DeepenCallback,
+    EnergyCallback,
+    EnergyLevel,
+    GoalSelectCallback,
+    MicrohitFeedbackAction,
+    MicrohitFeedbackCallback,
+    MicrohitOptionCallback,
+    PaywallAction,
+    PaywallCallback,
+    QuickStepAction,
+    QuickStepCallback,
+    QuizAction,
+    QuizAnswerCallback,
+    QuizResultActionCallback,
+    RatingCallback,
+    SimpleEnergyCallback,
+    StepAction,
+    StepCallback,
+    TensionCallback,
+)
+
+
+def energy_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура для выбора энергии 1-10 (legacy)."""
+    builder = InlineKeyboardBuilder()
+    for i in range(1, 11):
+        builder.button(text=str(i), callback_data=EnergyCallback(value=i))
+    builder.adjust(5, 5)
+    return builder.as_markup()
+
+
+def simple_energy_keyboard() -> InlineKeyboardMarkup:
+    """
+    Упрощённая клавиатура энергии — 3 уровня.
+    Снижает когнитивную нагрузку (Hick's Law).
+    """
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="😴 Мало сил",
+        callback_data=SimpleEnergyCallback(level=EnergyLevel.low),
+    )
+    builder.button(
+        text="😐 Норм",
+        callback_data=SimpleEnergyCallback(level=EnergyLevel.medium),
+    )
+    builder.button(
+        text="⚡ Бодрый",
+        callback_data=SimpleEnergyCallback(level=EnergyLevel.high),
+    )
+    builder.adjust(3)
+    return builder.as_markup()
+
+
+def blocker_keyboard() -> InlineKeyboardMarkup:
+    """Причина застревания."""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="😨 Страшно",
+        callback_data=BlockerCallback(type=BlockerType.fear),
+    )
+    builder.button(
+        text="🤷 Не знаю с чего",
+        callback_data=BlockerCallback(type=BlockerType.unclear),
+    )
+    builder.button(
+        text="⏰ Нет времени",
+        callback_data=BlockerCallback(type=BlockerType.no_time),
+    )
+    builder.button(
+        text="😴 Нет сил",
+        callback_data=BlockerCallback(type=BlockerType.no_energy),
+    )
+    builder.adjust(2, 2)
+    return builder.as_markup()
+
+
+def rating_keyboard() -> InlineKeyboardMarkup:
+    """Оценка дня 1-5."""
+    builder = InlineKeyboardBuilder()
+    emojis = ["😫", "😕", "😐", "🙂", "😊"]
+    for i, emoji in enumerate(emojis, start=1):
+        builder.button(text=emoji, callback_data=RatingCallback(value=i))
+    builder.adjust(5)
+    return builder.as_markup()
+
+
+def step_actions_keyboard(step_id: int) -> InlineKeyboardMarkup:
+    """Действия с конкретным шагом: Сделал / Пропустить / Застрял."""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="✅ Сделал",
+        callback_data=StepCallback(action=StepAction.done, step_id=step_id),
+    )
+    builder.button(
+        text="⏭ Пропустить",
+        callback_data=StepCallback(action=StepAction.skip, step_id=step_id),
+    )
+    builder.button(
+        text="🆘 Застрял",
+        callback_data=StepCallback(action=StepAction.stuck, step_id=step_id),
+    )
+    builder.adjust(2, 1)
+    return builder.as_markup()
+
+
+def steps_list_keyboard(step_ids: list[int]) -> InlineKeyboardMarkup:
+    """
+    Клавиатура для списка шагов с кнопками действий.
+    Показывает номер шага и кнопки для каждого.
+    """
+    builder = InlineKeyboardBuilder()
+    for i, step_id in enumerate(step_ids, start=1):
+        cb_done = StepCallback(action=StepAction.done, step_id=step_id)
+        cb_stuck = StepCallback(action=StepAction.stuck, step_id=step_id)
+        builder.button(text=f"✅ Шаг {i}", callback_data=cb_done)
+        builder.button(text="🆘", callback_data=cb_stuck)
+    builder.adjust(2)
+    return builder.as_markup()
+
+
+def microhit_feedback_keyboard(
+    step_id: int | None, blocker: BlockerType
+) -> InlineKeyboardMarkup:
+    """Кнопки реакции на микро-удар."""
+    builder = InlineKeyboardBuilder()
+    sid = step_id or 0  # 0 = без привязки к шагу
+    builder.button(
+        text="✅ Сделаю",
+        callback_data=MicrohitFeedbackCallback(
+            action=MicrohitFeedbackAction.do, step_id=sid, blocker=blocker
+        ),
+    )
+    builder.button(
+        text="🆘 Нужна подсказка",
+        callback_data=MicrohitFeedbackCallback(
+            action=MicrohitFeedbackAction.more, step_id=sid, blocker=blocker
+        ),
+    )
+    builder.button(
+        text="✏️ Другое",
+        callback_data=MicrohitFeedbackCallback(
+            action=MicrohitFeedbackAction.other, step_id=sid, blocker=blocker
+        ),
+    )
+    builder.adjust(1, 2)
+    return builder.as_markup()
+
+
+def microhit_options_keyboard(
+    options: list, blocker: BlockerType, step_id: int | None
+) -> InlineKeyboardMarkup:
+    """
+    Клавиатура с несколькими вариантами микро-ударов на выбор.
+
+    Args:
+        options: List of MicrohitOption with index and text
+        blocker: BlockerType for callbacks
+        step_id: Step ID or None (0 for no step)
+
+    Returns:
+        InlineKeyboardMarkup with option buttons
+
+    Example:
+        options = [
+            MicrohitOption(text="Открой файл", index=1),
+            MicrohitOption(text="Напиши одну строку", index=2),
+        ]
+        keyboard = microhit_options_keyboard(options, BlockerType.fear, None)
+    """
+    builder = InlineKeyboardBuilder()
+    sid = step_id or 0
+
+    for option in options:
+        # Use emoji numbers for better UX
+        emoji_numbers = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
+        emoji = (
+            emoji_numbers[option.index - 1] if option.index <= 5 else f"{option.index}."
+        )
+
+        builder.button(
+            text=f"{emoji} Вариант {option.index}",
+            callback_data=MicrohitOptionCallback(
+                index=option.index,
+                blocker=blocker,
+                step_id=sid,
+            ),
+        )
+
+    # Show max 3 buttons per row
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def low_energy_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура для пользователей с низкой энергией."""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="⚡ Шаг на 2 минуты",
+        callback_data=QuickStepCallback(action=QuickStepAction.quick),
+    )
+    builder.button(
+        text="Оставить как есть",
+        callback_data=QuickStepCallback(action=QuickStepAction.keep),
+    )
+    builder.adjust(1, 1)
+    return builder.as_markup()
+
+
+def main_menu_keyboard() -> ReplyKeyboardMarkup:
+    """
+    Главное меню с ключевыми командами.
+
+    Автоматически добавляет WebApp кнопку если TMA_URL задан в config.
+    """
+    from src.config import config
+
+    keyboard_rows = [
+        [KeyboardButton(text="Утро"), KeyboardButton(text="Застрял")],
+        [KeyboardButton(text="Вечер"), KeyboardButton(text="Статус")],
+    ]
+
+    # Добавляем WebApp кнопку если TMA_URL задан
+    if config.TMA_URL:
+        keyboard_rows.append(
+            [KeyboardButton(text="📱 App", web_app=WebAppInfo(url=config.TMA_URL))]
+        )
+
+    return ReplyKeyboardMarkup(
+        keyboard=keyboard_rows,
+        resize_keyboard=True,
+        input_field_placeholder="Утро — план дня, Застрял — быстрая помощь",
+    )
+
+
+def goal_select_keyboard(goals: list) -> InlineKeyboardMarkup:
+    """Выбор цели/темы для утреннего анти-паралич потока."""
+    builder = InlineKeyboardBuilder()
+    for goal in goals:
+        builder.button(
+            text=f"🎯 {getattr(goal, 'title', 'Цель')}",
+            callback_data=GoalSelectCallback(goal_id=getattr(goal, "id", 0)),
+        )
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def tension_keyboard() -> InlineKeyboardMarkup:
+    """Шкала напряжения 0-10 (шаг 2) для лёгкого выбора."""
+    builder = InlineKeyboardBuilder()
+    for value in (0, 2, 4, 6, 8, 10):
+        builder.button(text=str(value), callback_data=TensionCallback(value=value))
+    builder.adjust(6)
+    return builder.as_markup()
+
+
+def deepen_keyboard() -> InlineKeyboardMarkup:
+    """Кнопки после оценки: углубиться или завершить."""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="🚀 Ещё 15–30 минут",
+        callback_data=DeepenCallback(action=DeepenAction.more),
+    )
+    builder.button(
+        text="✅ Хватит, сохранить прогресс",
+        callback_data=DeepenCallback(action=DeepenAction.finish),
+    )
+    builder.adjust(1, 1)
+    return builder.as_markup()
+
+
+def quiz_question_keyboard(
+    question_id: int, options: list[tuple[str, int]]
+) -> InlineKeyboardMarkup:
+    """Клавиатура с вариантами ответа для квиза."""
+    builder = InlineKeyboardBuilder()
+    for idx, (text, _score) in enumerate(options):
+        builder.button(
+            text=text,
+            callback_data=QuizAnswerCallback(question=question_id, option=idx),
+        )
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def quiz_result_keyboard() -> InlineKeyboardMarkup:
+    """Кнопки на финале квиза."""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="Поехали",
+        callback_data=QuizResultActionCallback(action=QuizAction.proceed),
+    )
+    builder.button(
+        text="Не сейчас",
+        callback_data=QuizResultActionCallback(action=QuizAction.later),
+    )
+    builder.adjust(1, 1)
+    return builder.as_markup()
+
+
+def paywall_keyboard() -> InlineKeyboardMarkup:
+    """Кнопки пейволла после мини-спринта."""
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="Да, хочу 3-дневную миссию",
+        callback_data=PaywallCallback(action=PaywallAction.accept),
+    )
+    builder.button(
+        text="Нет, хватит",
+        callback_data=PaywallCallback(action=PaywallAction.decline),
+    )
+    builder.adjust(1, 1)
+    return builder.as_markup()
