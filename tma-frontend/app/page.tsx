@@ -187,7 +187,7 @@ export default function Home() {
 
           <div>
             <label className="block text-sm font-medium mb-2">
-              What's blocking you?
+              What&apos;s blocking you?
             </label>
             <select
               value={blockerType}
