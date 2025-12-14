@@ -129,22 +129,9 @@ async def main():
             await dp.feed_update(bot, update)
             return web.Response()
 
-        # Create aiohttp app with CORS support
-        import aiohttp_cors
-
+        # Create aiohttp app
         app = web.Application()
         app.router.add_post(config.WEBHOOK_PATH, handle_webhook)
-
-        # Add root endpoint (for browser access)
-        async def root(request: web.Request) -> web.Response:
-            return web.json_response(
-                {
-                    "service": "Antipanic Bot",
-                    "status": "running",
-                    "mode": "webhook",
-                    "docs": "Use Telegram to interact with the bot",
-                }
-            )
 
         # Add health check endpoint
         async def health(request: web.Request) -> web.Response:
@@ -164,28 +151,37 @@ async def main():
             stats = await reminders.process_reminders()
             return web.json_response({"status": "ok", "stats": stats})
 
+        # Add root endpoint (for browser access)
+        async def root(request: web.Request) -> web.Response:
+            return web.json_response(
+                {
+                    "service": "Antipanic Bot",
+                    "status": "running",
+                    "mode": "webhook",
+                    "docs": "Use Telegram to interact with the bot",
+                }
+            )
+
         app.router.add_get("/", root)
         app.router.add_get("/health", health)
         app.router.add_get("/cron/tick", cron_tick)
 
         # Mount FastAPI app for TMA API endpoints
-        # FastAPI handles /api/* routes
         from src.interfaces.api.main import app as fastapi_app
         from aiohttp_asgi import ASGIResource
 
-        # Create ASGI resource and mount it for all paths not handled by aiohttp
         asgi_resource = ASGIResource(fastapi_app)
-        # Use add_route with path pattern for catch-all
         app.router.add_route("*", "/api{path_info:.*}", asgi_resource)
         logger.info("FastAPI app mounted for /api/* routes")
 
-        # Configure CORS for aiohttp routes
-        # This is needed because aiohttp handles requests before FastAPI
+        # Configure CORS for aiohttp routes (needed for preflight OPTIONS requests)
+        import aiohttp_cors
+
         cors_origins = ["http://localhost:3000"]
         if config.TMA_URL:
             cors_origins.append(config.TMA_URL)
-        # Add Railway domain patterns
-        cors_origins.append("https://*.up.railway.app")
+        # Allow all Railway subdomains
+        cors_origins.append("https://faithful-love-production-44e5.up.railway.app")
 
         cors = aiohttp_cors.setup(
             app,
@@ -205,8 +201,7 @@ async def main():
             try:
                 cors.add(route)
             except ValueError:
-                # Route already has CORS or is not applicable
-                pass
+                pass  # Route already has CORS or not applicable
         logger.info(f"CORS configured for origins: {cors_origins}")
 
         # Startup hook for aiohttp
