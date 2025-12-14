@@ -4,6 +4,7 @@
 
 import asyncio
 import logging
+from urllib.parse import urlparse
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -73,7 +74,12 @@ async def main():
             config.redis_url, decode_responses=True, encoding="utf-8"
         )
         storage = RedisStorage(redis=redis)
-        logger.info(f"Using RedisStorage: {config.redis_url}")
+
+        # Parse Redis URL to log only host:port (without credentials)
+        parsed = urlparse(config.redis_url)
+        redis_host = parsed.hostname or "unknown"
+        redis_port = parsed.port or 6379
+        logger.info(f"Using RedisStorage at {redis_host}:{redis_port}")
     else:
         storage = MemoryStorage()
         logger.info("Using MemoryStorage (development mode)")
