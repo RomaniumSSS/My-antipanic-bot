@@ -13,14 +13,25 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# CORS для Vercel (будет обновлено при деплое)
+# CORS: allow TMA frontend + development
+allowed_origins = [
+    "http://localhost:3000",  # Local development
+]
+
+# Add production TMA URL if configured
+if settings.TMA_URL:
+    allowed_origins.append(settings.TMA_URL)
+
+# Development: allow all origins if TMA_URL not set
+allow_credentials = True
+if not settings.TMA_URL and settings.ENVIRONMENT != "production":
+    allowed_origins = ["*"]
+    allow_credentials = False  # Cannot use credentials with wildcard
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # Development
-        "https://*.vercel.app",  # Vercel preview/production
-    ],
-    allow_credentials=True,
+    allow_origins=allowed_origins,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
