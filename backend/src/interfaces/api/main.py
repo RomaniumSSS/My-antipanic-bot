@@ -48,16 +48,20 @@ if settings.ENVIRONMENT != "production":
     app.include_router(dev.router, tags=["development"])
 
 
-@app.on_event("startup")
-async def startup():
-    """Initialize database connection on startup."""
-    await init_db()
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    """Close database connection on shutdown."""
-    await close_db()
+# NOTE: Database initialization is handled by the main bot application
+# when FastAPI is mounted as a sub-app. These events are disabled to avoid
+# double initialization.
+#
+# @app.on_event("startup")
+# async def startup():
+#     """Initialize database connection on startup."""
+#     await init_db()
+#
+#
+# @app.on_event("shutdown")
+# async def shutdown():
+#     """Close database connection on shutdown."""
+#     await close_db()
 
 
 @app.get("/")
