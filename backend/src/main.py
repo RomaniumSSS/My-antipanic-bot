@@ -133,6 +133,17 @@ async def main():
         app = web.Application()
         app.router.add_post(config.WEBHOOK_PATH, handle_webhook)
 
+        # Add root endpoint (for browser access)
+        async def root(request: web.Request) -> web.Response:
+            return web.json_response(
+                {
+                    "service": "Antipanic Bot",
+                    "status": "running",
+                    "mode": "webhook",
+                    "docs": "Use Telegram to interact with the bot",
+                }
+            )
+
         # Add health check endpoint
         async def health(request: web.Request) -> web.Response:
             return web.json_response({"status": "ok"})
@@ -151,6 +162,7 @@ async def main():
             stats = await reminders.process_reminders()
             return web.json_response({"status": "ok", "stats": stats})
 
+        app.router.add_get("/", root)
         app.router.add_get("/health", health)
         app.router.add_get("/cron/tick", cron_tick)
 
@@ -159,10 +171,10 @@ async def main():
         from src.interfaces.api.main import app as fastapi_app
         from aiohttp_asgi import ASGIResource
 
+        # Правильный способ монтирования ASGI-приложения в aiohttp
         asgi_resource = ASGIResource(fastapi_app)
-        # Catch-all route for FastAPI (must be last)
-        # This will match any route not already matched by aiohttp
-        app.router.add_route("*", "/{tail:.*}", asgi_resource)
+        app.router.register_resource(asgi_resource)
+        asgi_resource.lifespan_mount(app)
         logger.info("FastAPI app mounted (TMA endpoints: /api/*)")
 
         # Startup hook for aiohttp
