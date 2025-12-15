@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.config import config
-from src.interfaces.api.routers import goal, microhit, stats, user
+from src.interfaces.api.routers import goal, microhit, stats, step, user
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +50,7 @@ app.add_middleware(
 app.include_router(user.router)
 app.include_router(goal.router)
 app.include_router(stats.router)
+app.include_router(step.router)
 app.include_router(microhit.router)
 
 

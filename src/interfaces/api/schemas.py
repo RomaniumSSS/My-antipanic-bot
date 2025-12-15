@@ -132,6 +132,37 @@ class TodayStepsResponse(BaseModel):
     completed: int
 
 
+# ============ Step Action Schemas ============
+
+
+class CompleteStepRequest(BaseModel):
+    """Request to complete a step."""
+
+    # No additional fields needed, step_id comes from path
+
+
+class CompleteStepResponse(BaseModel):
+    """Response after completing a step."""
+
+    success: bool
+    xp_earned: int
+    total_xp: int
+    streak_updated: bool
+    new_streak: int
+
+
+class SkipStepRequest(BaseModel):
+    """Request to skip a step."""
+
+    reason: Optional[str] = "Не подошло"
+
+
+class SkipStepResponse(BaseModel):
+    """Response after skipping a step."""
+
+    success: bool
+
+
 # ============ MicroHit Schemas ============
 
 
