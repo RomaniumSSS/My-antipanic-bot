@@ -4,6 +4,7 @@
 
 import asyncio
 import logging
+from typing import Any
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -131,6 +132,64 @@ async def main():
 
         app.router.add_get("/health", health)
         app.router.add_get("/cron/tick", cron_tick)
+
+        # === FastAPI TMA Integration ===
+        # AICODE-NOTE: Mount FastAPI app for /api/* routes using ASGI adapter
+        from src.interfaces.api.main import app as fastapi_app
+
+        async def handle_api(request: web.Request) -> web.Response:
+            """
+            Proxy /api/* requests to FastAPI ASGI app.
+            """
+            # Build ASGI scope from aiohttp request
+            scope: dict[str, Any] = {
+                "type": "http",
+                "asgi": {"version": "3.0"},
+                "http_version": "1.1",
+                "method": request.method,
+                "scheme": request.scheme,
+                "path": request.path,
+                "query_string": request.query_string.encode(),
+                "root_path": "",
+                "headers": [
+                    (k.lower().encode(), v.encode()) for k, v in request.headers.items()
+                ],
+                "server": (request.host.split(":")[0], request.url.port or 80),
+            }
+
+            # Read request body
+            body = await request.read()
+
+            # Capture response
+            status_code = 200
+            response_headers: list[tuple[bytes, bytes]] = []
+            body_parts: list[bytes] = []
+
+            async def receive() -> dict[str, Any]:
+                return {"type": "http.request", "body": body, "more_body": False}
+
+            async def send(message: dict[str, Any]) -> None:
+                nonlocal status_code, response_headers
+                if message["type"] == "http.response.start":
+                    status_code = message["status"]
+                    response_headers = message.get("headers", [])
+                elif message["type"] == "http.response.body":
+                    body_parts.append(message.get("body", b""))
+
+            # Call FastAPI
+            await fastapi_app(scope, receive, send)
+
+            # Build aiohttp response
+            headers = {k.decode(): v.decode() for k, v in response_headers}
+            return web.Response(
+                status=status_code,
+                headers=headers,
+                body=b"".join(body_parts),
+            )
+
+        # Route all /api/* requests to FastAPI
+        app.router.add_route("*", "/api{path_info:.*}", handle_api)
+        logger.info("FastAPI TMA endpoints mounted at /api/*")
 
         # Startup hook for aiohttp
         async def on_app_startup(app: web.Application):

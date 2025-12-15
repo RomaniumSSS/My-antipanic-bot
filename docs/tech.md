@@ -22,6 +22,12 @@ src/
 │   ├── middlewares/     # Middleware (access, etc.)
 │   ├── states.py        # FSM состояния
 │   └── keyboards.py     # Клавиатуры (используют callbacks/data.py)
+├── interfaces/
+│   └── api/             # FastAPI TMA endpoints
+│       ├── main.py      # FastAPI app с CORS
+│       ├── auth.py      # Telegram WebApp initData валидация
+│       ├── schemas.py   # Pydantic модели ответов
+│       └── routers/     # API роутеры (/api/me, /api/goals, etc.)
 ├── database/
 │   ├── config.py        # Tortoise config
 │   └── models.py        # User, Goal, Stage, Step, DailyLog
@@ -49,6 +55,22 @@ src/
 - Telegram Bot API через aiogram.  
 - OpenAI GPT-4o через `services/ai.py`.  
 - APScheduler — планировщик напоминаний (локально).
+- FastAPI — REST API для Telegram Mini App (TMA).
+
+## TMA API Endpoints
+REST API для фронтенда Telegram Mini App (см. `src/interfaces/api/`):
+
+| Endpoint | Метод | Описание |
+|----------|-------|----------|
+| `/api/me` | GET | Профиль пользователя |
+| `/api/goals` | GET | Список целей |
+| `/api/goals/{id}` | GET | Детали цели со стадиями |
+| `/api/stats` | GET | Статистика (XP, streak, прогресс) |
+| `/api/microhit` | POST | Генерация микро-действия |
+| `/api/health` | GET | Health check API |
+| `/api/docs` | GET | Swagger документация |
+
+**Аутентификация**: Header `Authorization: tma <initData>` — валидация через HMAC-SHA256.
 
 ## Конфигурация и запуск
 - Переменные окружения: `BOT_TOKEN`, `OPENAI_KEY`.  

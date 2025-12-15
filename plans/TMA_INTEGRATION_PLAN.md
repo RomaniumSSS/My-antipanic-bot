@@ -231,10 +231,11 @@ button = InlineKeyboardButton(
 ## Чеклист готовности
 
 ### Бэкенд
-- [ ] FastAPI endpoints работают
-- [ ] CORS настроен для Vercel домена
-- [ ] Аутентификация через initData работает
-- [ ] `/api/me` возвращает данные пользователя
+- [x] FastAPI endpoints работают (`/api/me`, `/api/goals`, `/api/stats`, `/api/microhit`)
+- [x] CORS настроен (localhost:3000 + TMA_URL env var)
+- [x] Аутентификация через initData работает (`auth.py`)
+- [x] `/api/me` возвращает данные пользователя (auto-creates if not exists)
+- [x] FastAPI интегрирован в aiohttp через ASGI adapter
 
 ### Фронтенд
 - [ ] Деплой на Vercel успешен
