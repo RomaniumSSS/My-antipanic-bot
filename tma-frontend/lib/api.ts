@@ -6,7 +6,8 @@
 
 import { getInitData } from './telegram';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// AICODE-NOTE: Production URL as fallback — env var often doesn't work on Vercel
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://my-antipanic-bot-production.up.railway.app';
 
 // ============ Types (matching backend schemas) ============
 
@@ -109,9 +110,8 @@ export class ApiError extends Error {
 async function fetchAPI<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const initData = getInitData();
   
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...options.headers,
   };
   
   // Add auth header if we have initData (running in Telegram)
