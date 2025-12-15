@@ -85,6 +85,24 @@ class PaywallAction(str, Enum):
     decline = "decline"
 
 
+class GoalManageAction(str, Enum):
+    """Действия управления целями."""
+
+    edit_stages = "edit_stages"  # Редактировать этапы
+    delete = "delete"  # Удалить цель
+    complete = "complete"  # Завершить цель
+    pause = "pause"  # Приостановить
+    resume = "resume"  # Возобновить
+
+
+class StageManageAction(str, Enum):
+    """Действия с этапами."""
+
+    edit = "edit"  # Редактировать название
+    delete = "delete"  # Удалить этап
+    add = "add"  # Добавить новый этап
+
+
 # === Callback Data Classes ===
 
 
@@ -229,3 +247,18 @@ class PaywallCallback(CallbackData, prefix="paywall"):
     """Действие на пейволле после микрошага."""
 
     action: PaywallAction
+
+
+class GoalManageCallback(CallbackData, prefix="goalman"):
+    """Управление конкретной целью."""
+
+    action: GoalManageAction
+    goal_id: int
+
+
+class StageManageCallback(CallbackData, prefix="stageman"):
+    """Управление конкретным этапом."""
+
+    action: StageManageAction
+    stage_id: int
+    goal_id: int

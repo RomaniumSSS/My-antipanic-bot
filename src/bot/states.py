@@ -62,3 +62,14 @@ class OnboardingSprintStates(StatesGroup):
     """Мини-спринт после квиза."""
 
     paywall = State()  # Пейволл после микрошага
+
+
+class GoalManageStates(StatesGroup):
+    """Управление целями и этапами."""
+
+    viewing_goal = State()  # Просмотр деталей цели
+    editing_stages = State()  # Список этапов для редактирования
+    editing_stage_name = State()  # Ввод нового названия этапа
+    adding_stage = State()  # Ввод нового этапа
+    confirming_delete_goal = State()  # Подтверждение удаления цели
+    confirming_delete_stage = State()  # Подтверждение удаления этапа

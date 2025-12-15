@@ -15,6 +15,8 @@ from src.bot.callbacks.data import (
     DeepenCallback,
     EnergyCallback,
     EnergyLevel,
+    GoalManageAction,
+    GoalManageCallback,
     GoalSelectCallback,
     MicrohitFeedbackAction,
     MicrohitFeedbackCallback,
@@ -28,6 +30,8 @@ from src.bot.callbacks.data import (
     QuizResultActionCallback,
     RatingCallback,
     SimpleEnergyCallback,
+    StageManageAction,
+    StageManageCallback,
     StepAction,
     StepCallback,
     TensionCallback,
@@ -228,6 +232,7 @@ def main_menu_keyboard() -> ReplyKeyboardMarkup:
         keyboard=[
             [KeyboardButton(text="Утро"), KeyboardButton(text="Застрял")],
             [KeyboardButton(text="Вечер"), KeyboardButton(text="Статус")],
+            [KeyboardButton(text="Цели")],
         ],
         resize_keyboard=True,
         input_field_placeholder="Утро — план дня, Застрял — быстрая помощь",
@@ -310,5 +315,130 @@ def paywall_keyboard() -> InlineKeyboardMarkup:
         text="Нет, хватит",
         callback_data=PaywallCallback(action=PaywallAction.decline),
     )
+    builder.adjust(1, 1)
+    return builder.as_markup()
+
+
+def goal_manage_keyboard(goal_id: int, is_active: bool = True) -> InlineKeyboardMarkup:
+    """Кнопки управления конкретной целью."""
+    builder = InlineKeyboardBuilder()
+    
+    # Редактировать этапы
+    builder.button(
+        text="✏️ Изменить этапы",
+        callback_data=GoalManageCallback(
+            action=GoalManageAction.edit_stages, goal_id=goal_id
+        ),
+    )
+    
+    # Пауза/Возобновить (если цель активная)
+    if is_active:
+        builder.button(
+            text="⏸ Приостановить",
+            callback_data=GoalManageCallback(
+                action=GoalManageAction.pause, goal_id=goal_id
+            ),
+        )
+    else:
+        builder.button(
+            text="▶️ Возобновить",
+            callback_data=GoalManageCallback(
+                action=GoalManageAction.resume, goal_id=goal_id
+            ),
+        )
+    
+    # Завершить
+    builder.button(
+        text="✅ Завершить цель",
+        callback_data=GoalManageCallback(
+            action=GoalManageAction.complete, goal_id=goal_id
+        ),
+    )
+    
+    # Удалить (отдельной строкой, красная кнопка)
+    builder.button(
+        text="🗑 Удалить цель",
+        callback_data=GoalManageCallback(
+            action=GoalManageAction.delete, goal_id=goal_id
+        ),
+    )
+    
+    builder.adjust(1, 2, 1, 1)
+    return builder.as_markup()
+
+
+def stages_manage_keyboard(stages: list, goal_id: int) -> InlineKeyboardMarkup:
+    """Клавиатура для управления этапами."""
+    builder = InlineKeyboardBuilder()
+    
+    for stage in stages:
+        stage_id = getattr(stage, "id", 0)
+        title = getattr(stage, "title", "Этап")
+        status = getattr(stage, "status", "pending")
+        
+        # Иконка статуса
+        icon = "✅" if status == "completed" else "🔵" if status == "active" else "⚪"
+        
+        # Кнопки: редактировать и удалить
+        builder.button(
+            text=f"{icon} {title}",
+            callback_data=StageManageCallback(
+                action=StageManageAction.edit, stage_id=stage_id, goal_id=goal_id
+            ),
+        )
+        builder.button(
+            text="🗑",
+            callback_data=StageManageCallback(
+                action=StageManageAction.delete, stage_id=stage_id, goal_id=goal_id
+            ),
+        )
+    
+    # Кнопка добавить новый этап
+    builder.button(
+        text="➕ Добавить этап",
+        callback_data=StageManageCallback(
+            action=StageManageAction.add, stage_id=0, goal_id=goal_id
+        ),
+    )
+    
+    builder.adjust(2)  # По 2 кнопки в ряду (название этапа + удалить)
+    return builder.as_markup()
+
+
+def confirm_delete_keyboard(
+    goal_id: int, stage_id: int | None = None
+) -> InlineKeyboardMarkup:
+    """Подтверждение удаления цели или этапа."""
+    builder = InlineKeyboardBuilder()
+    
+    if stage_id is None:
+        # Удаление цели
+        builder.button(
+            text="✅ Да, удалить цель",
+            callback_data=GoalManageCallback(
+                action=GoalManageAction.delete, goal_id=goal_id
+            ),
+        )
+        builder.button(
+            text="❌ Отмена",
+            callback_data=GoalManageCallback(
+                action=GoalManageAction.edit_stages, goal_id=goal_id
+            ),
+        )
+    else:
+        # Удаление этапа
+        builder.button(
+            text="✅ Да, удалить этап",
+            callback_data=StageManageCallback(
+                action=StageManageAction.delete, stage_id=stage_id, goal_id=goal_id
+            ),
+        )
+        builder.button(
+            text="❌ Отмена",
+            callback_data=StageManageCallback(
+                action=StageManageAction.edit, stage_id=0, goal_id=goal_id
+            ),
+        )
+    
     builder.adjust(1, 1)
     return builder.as_markup()
