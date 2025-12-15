@@ -240,15 +240,16 @@ button = InlineKeyboardButton(
 ### Фронтенд
 - [x] Деплой на Vercel успешен (https://antipanic-tma-frontend.vercel.app)
 - [x] GitHub репо: https://github.com/RomaniumSSS/antipanic-tma-frontend
-- [ ] API запросы проходят (pending: TMA_URL в Railway)
-- [ ] Telegram WebApp SDK инициализируется
-- [ ] Данные отображаются
+- [x] API запросы проходят
+- [x] Telegram WebApp SDK инициализируется
+- [x] Данные отображаются
 
 ### Интеграция
-- [ ] TMA_URL добавлен в Railway
-- [ ] TMA открывается из Telegram
-- [ ] Пользователь авторизуется автоматически
-- [ ] Все endpoints работают в TMA
+- [x] TMA_URL добавлен в Railway
+- [x] /app команда добавлена в бота
+- [x] TMA открывается из Telegram
+- [x] Пользователь авторизуется автоматически
+- [x] Все endpoints работают в TMA ✅ DONE 2024-12-15
 
 ---
 
