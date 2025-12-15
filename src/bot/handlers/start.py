@@ -9,11 +9,28 @@ AICODE-NOTE: Упрощено для Этапа 1.2 TMA миграции.
 from aiogram import F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
 
 from src.bot.keyboards import main_menu_keyboard
 from src.bot.states import OnboardingStates
+from src.config import config
 from src.database.models import Goal, User
+
+
+def tma_keyboard() -> InlineKeyboardMarkup | None:
+    """Inline keyboard with TMA button (if TMA_URL configured)."""
+    if not config.TMA_URL:
+        return None
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="🚀 Открыть приложение",
+                    web_app=WebAppInfo(url=config.TMA_URL),
+                )
+            ]
+        ]
+    )
 
 router = Router()
 
@@ -106,6 +123,7 @@ async def cmd_help(message: Message) -> None:
         "/stuck — помощь при ступоре\n"
         "/status — прогресс\n"
         "/evening — итоги дня\n"
+        "/app — открыть приложение\n"
         "/start — новая цель"
     )
 
@@ -153,3 +171,20 @@ async def cmd_status(message: Message) -> None:
         f"⭐ XP: {user.xp}",
         reply_markup=main_menu_keyboard(),
     )
+
+
+@router.message(Command("app"))
+async def cmd_app(message: Message) -> None:
+    """Открыть Telegram Mini App."""
+    keyboard = tma_keyboard()
+    if keyboard:
+        await message.answer(
+            "📱 *Antipanic App*\n\n"
+            "Статистика, цели и прогресс в одном месте.",
+            reply_markup=keyboard,
+        )
+    else:
+        await message.answer(
+            "⚠️ Mini App пока не настроен.\n"
+            "Используй /status для просмотра прогресса."
+        )
