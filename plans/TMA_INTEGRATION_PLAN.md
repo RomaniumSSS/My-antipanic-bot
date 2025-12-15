@@ -238,12 +238,14 @@ button = InlineKeyboardButton(
 - [x] FastAPI интегрирован в aiohttp через ASGI adapter
 
 ### Фронтенд
-- [ ] Деплой на Vercel успешен
-- [ ] API запросы проходят
+- [x] Деплой на Vercel успешен (https://antipanic-tma-frontend.vercel.app)
+- [x] GitHub репо: https://github.com/RomaniumSSS/antipanic-tma-frontend
+- [ ] API запросы проходят (pending: TMA_URL в Railway)
 - [ ] Telegram WebApp SDK инициализируется
 - [ ] Данные отображаются
 
 ### Интеграция
+- [ ] TMA_URL добавлен в Railway
 - [ ] TMA открывается из Telegram
 - [ ] Пользователь авторизуется автоматически
 - [ ] Все endpoints работают в TMA
