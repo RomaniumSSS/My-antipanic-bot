@@ -168,8 +168,7 @@ export default function HomePage() {
             goals={goals.goals}
             onGoalClick={(id) => {
               hapticFeedback('light');
-              // TODO: Navigate to goal detail page
-              console.log('Goal clicked:', id);
+              window.location.href = `/goals/${id}`;
             }}
           />
         )}

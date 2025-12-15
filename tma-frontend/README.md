@@ -28,7 +28,10 @@ app/
 ├── layout.tsx      # Корневой layout с TelegramProvider
 ├── page.tsx        # Главная страница (статистика + цели)
 ├── providers.tsx   # React контексты (Telegram)
-└── globals.css     # Глобальные стили + Tailwind
+├── globals.css     # Глобальные стили + Tailwind
+└── goals/
+    └── [id]/
+        └── page.tsx # Страница деталей цели
 
 lib/
 ├── telegram.ts     # Telegram WebApp SDK типы и хелперы
@@ -37,7 +40,10 @@ lib/
 components/
 ├── StatsCard.tsx   # Карточка статистики пользователя
 ├── GoalCard.tsx    # Карточка цели
-└── UserProfile.tsx # Профиль пользователя
+├── UserProfile.tsx # Профиль пользователя
+├── ProgressBar.tsx # Универсальный прогресс-бар
+├── StageCard.tsx   # Карточка этапа цели
+└── StepItem.tsx    # Элемент шага (task item)
 ```
 
 ## Переменные окружения
