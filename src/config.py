@@ -13,10 +13,16 @@ class Settings(BaseSettings):
     # Telegram
     BOT_TOKEN: SecretStr
 
-    # OpenAI
-    OPENAI_KEY: SecretStr
-    # Используем более мощную модель по умолчанию
+    # OpenAI (legacy, kept for fallback)
+    OPENAI_KEY: SecretStr | None = None
     OPENAI_MODEL: str = "gpt-4.1"
+
+    # Anthropic (Claude) — primary AI provider
+    ANTHROPIC_KEY: SecretStr | None = None
+    ANTHROPIC_MODEL: str = "claude-sonnet-4-20250514"
+
+    # AI Provider selection: "anthropic" or "openai"
+    AI_PROVIDER: str = "anthropic"
 
     # Alpha Testing: Whitelist (empty = open access)
     ALLOWED_USER_IDS: list[int] = []
