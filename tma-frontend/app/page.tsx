@@ -158,7 +158,18 @@ export default function HomePage() {
 
       {/* Stats card */}
       <section>
-        <h2 className="text-lg font-semibold mb-3">📊 Статистика</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold">📊 Статистика</h2>
+          <button
+            className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+            onClick={() => {
+              hapticFeedback('light');
+              window.location.href = '/stats';
+            }}
+          >
+            Подробнее →
+          </button>
+        </div>
         {loadingState === 'loading' || !stats ? (
           <StatsCardSkeleton />
         ) : (
@@ -170,6 +181,24 @@ export default function HomePage() {
       {loadingState === 'ready' && (
         <section>
           <TodaySteps onStatsUpdate={reloadStats} />
+        </section>
+      )}
+
+      {/* Stuck button */}
+      {loadingState === 'ready' && (
+        <section>
+          <button
+            className="w-full p-4 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-xl font-semibold shadow-md hover:shadow-lg transition-all"
+            onClick={() => {
+              hapticFeedback('medium');
+              window.location.href = '/stuck';
+            }}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <span className="text-2xl">🆘</span>
+              <span>Застрял? Получить микро-удар!</span>
+            </div>
+          </button>
         </section>
       )}
 
