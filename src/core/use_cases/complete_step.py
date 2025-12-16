@@ -137,10 +137,16 @@ class CompleteStepUseCase:
             await stage.fetch_related("goal")
             goal = stage.goal
 
+            # AICODE-NOTE: Не завершаем stage если шагов мало (antipanic micro-steps)
+            # Иначе цель завершается после первого body_step (1/1 = 100%)
+            # Минимум 4 шага для авто-завершения этапа
+            MIN_STEPS_FOR_AUTO_COMPLETE = 4
+
             if finished_count == total_count and completed_count > 0:
-                if goal.status != "onboarding":
+                if goal.status != "onboarding" and total_count >= MIN_STEPS_FOR_AUTO_COMPLETE:
                     stage.status = "completed"
                 else:
+                    # Мало шагов или onboarding — держим active для продолжения
                     stage.status = "active"
             elif stage.status == "pending" and completed_count > 0:
                 stage.status = "active"
