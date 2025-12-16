@@ -185,7 +185,19 @@ export default function TodaySteps({ onStatsUpdate }: TodayStepsProps) {
           <p className="text-sm text-gray-400 mt-2">Отличная работа сегодня</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <>
+          {/* Stuck button - appears when there are pending steps */}
+          <div className="mb-4">
+            <a
+              href="/stuck"
+              className="block w-full bg-orange-500/20 hover:bg-orange-500/30 border-2 border-orange-500 
+                         text-orange-400 font-medium py-3 px-4 rounded-xl text-center transition-colors"
+            >
+              🆘 Застрял? Получить микро-удар
+            </a>
+          </div>
+
+          <div className="space-y-3">
           {steps.map((step) => (
             <div
               key={step.id}
@@ -247,7 +259,8 @@ export default function TodaySteps({ onStatsUpdate }: TodayStepsProps) {
               )}
             </div>
           ))}
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

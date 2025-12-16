@@ -264,13 +264,15 @@ await ensure_active_stage(goal)  # Handles completion logic
 4. Wrap related operations in `async with in_transaction():`
 5. Use `get_or_create()` for idempotent inserts
 
-### OpenAI API Rules (docs/OPENAI_RULES.md)
-1. **Only** use `AsyncOpenAI` client
-2. API keys from config, never hardcoded
-3. Implement retry with tenacity for transient errors
-4. Always have fallback messages
-5. Structure prompts in constants
-6. Energy-based generation: low energy (1-3) = only easy steps
+### Claude API Rules (docs/CLAUDE_RULES.md)
+1. **Only** use `AsyncAnthropic` client (NEVER sync!)
+2. **max_tokens** MANDATORY parameter (unlike OpenAI)
+3. API keys from config, never hardcoded
+4. Implement retry with tenacity for transient errors
+5. Always have fallback messages
+6. Structure prompts in constants
+7. Drill sergeant tone (no "попробуй", "может быть")
+8. Energy-based generation: low energy (1-3) = only easy steps
 
 ### APScheduler Rules (docs/APSCHEDULER_RULES.md)
 1. Use `AsyncScheduler` for async jobs
@@ -311,7 +313,7 @@ Fixtures available in `tests/conftest.py`:
 - `docs/product.md` - User flows, business logic
 - `docs/AIOGRAM_RULES.md` - Bot patterns
 - `docs/TORTOISE_RULES.md` - Database patterns
-- `docs/OPENAI_RULES.md` - AI integration patterns
+- `docs/CLAUDE_RULES.md` - AI integration patterns (Claude API)
 - `docs/AGENTS.md` - AI agent instructions
 
 **Do NOT update documentation for:**
@@ -330,7 +332,7 @@ Fixtures available in `tests/conftest.py`:
 - `src/bot/callbacks/data.py` - CallbackData factories
 - `src/bot/keyboards.py` - Keyboard builders
 - `src/bot/middlewares/access.py` - Whitelist middleware
-- `src/services/ai.py` - OpenAI wrapper
+- `src/services/ai.py` - Claude/OpenAI wrapper (AI service)
 - `src/services/scheduler.py` - APScheduler wrapper
 - `src/services/session.py` - Session management, step creation, DailyLog integration
 
@@ -369,7 +371,7 @@ logging.basicConfig(level=logging.DEBUG)
 4. ❌ N+1 queries (missing prefetch_related)
 5. ❌ Business logic in handlers instead of services
 6. ❌ Hardcoded API keys
-7. ❌ Sync OpenAI client
+7. ❌ Sync Claude or OpenAI client (NEVER sync in async context!)
 8. ❌ Forgetting to update stage progress after completing steps
 9. ❌ Manually managing active stage state (use `ensure_active_stage()`)
 10. ❌ Creating goals/stages without proper status initialization

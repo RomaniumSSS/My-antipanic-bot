@@ -168,12 +168,20 @@ class MicroHitRequest(BaseModel):
     """Request to generate micro-action for stuck state."""
 
     step_id: int
+    blocker_type: str  # fear, unclear, no_time, no_energy
     blocker_text: str | None = None
 
 
-class MicroHitResponse(BaseModel):
-    """Generated micro-action response."""
+class MicroHitVariant(BaseModel):
+    """Single microhit variant option."""
 
-    micro_action: str
+    index: int  # 1-based
+    text: str
+
+
+class MicroHitResponse(BaseModel):
+    """Generated micro-action variants response."""
+
+    variants: list[MicroHitVariant]
     original_step: StepResponse
-    estimated_minutes: int  # Usually 2-5 for micro-hit
+    blocker_type: str

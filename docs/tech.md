@@ -48,8 +48,14 @@ src/
 1. **Quiz**: 10 вопросов → dependency_score → AI-диагноз → мини-спринт + пейволл  
 2. **Onboarding**: goal → deadline → confirm stages  
 3. **Morning**: energy (1-10) → mood (text) → show steps  
-4. **Stuck**: blocker type → details → microhit  
+4. **Stuck**: blocker type → details → **2-3 варианта микро-ударов на выбор**  
 5. **Evening**: mark done → skip reasons → rating
+
+## TMA Frontend Страницы
+- `/` — главная (профиль, статистика, шаги на сегодня, цели)
+- `/goals/{id}` — детали цели с этапами
+- `/stuck` — **stuck flow с выбором блокера и вариантов микро-ударов**
+- `/stats` — расширенная статистика
 
 ## Интеграции
 - Telegram Bot API через aiogram.  
@@ -67,7 +73,10 @@ REST API для фронтенда Telegram Mini App (см. `src/interfaces/api/
 | `/api/goals` | GET | Список целей |
 | `/api/goals/{id}` | GET | Детали цели со стадиями |
 | `/api/stats` | GET | Статистика (XP, streak, прогресс) |
-| `/api/microhit` | POST | Генерация микро-действия |
+| `/api/steps/today` | GET | Шаги на сегодня |
+| `/api/steps/{id}/complete` | POST | Завершить шаг |
+| `/api/steps/{id}/skip` | POST | Пропустить шаг |
+| `/api/microhit` | POST | Генерация **нескольких** вариантов микро-ударов |
 | `/api/health` | GET | Health check API |
 | `/api/docs` | GET | Swagger документация |
 

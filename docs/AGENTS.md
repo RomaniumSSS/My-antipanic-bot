@@ -23,7 +23,7 @@
 ## 3. Базовые принципы (Core Principles)
 1. **Documentation-First Development** — каждая сессия начинается с чтения `docs/`.
 2. **Instruction-First** — простые задачи: следуем запросу; сложные: сначала план.
-3. **Keep It Simple (MVP)** — делаем MVP, избегаем оверинжиниринга; используем стек из `docs/tech.md` (aiogram, Tortoise ORM, SQLite, OpenAI API, APScheduler).
+3. **Keep It Simple (MVP)** — делаем MVP, избегаем оверинжиниринга; используем стек из `docs/tech.md` (aiogram, Tortoise ORM, SQLite, Claude API, APScheduler).
 4. **Одна боль → действие** — весь функционал крутится вокруг снятия паралича и запуска микрошагов.
 
 ## 4. Режим планирования (Plan Mode)
