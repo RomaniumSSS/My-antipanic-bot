@@ -52,9 +52,7 @@ async def cmd_goals(message: Message, state: FSMContext) -> None:
 
     # Получаем все цели (кроме удалённых)
     goals = (
-        await Goal.filter(user=user)
-        .exclude(status="abandoned")
-        .order_by("-created_at")
+        await Goal.filter(user=user).exclude(status="abandoned").order_by("-created_at")
     )
 
     if not goals:
@@ -75,7 +73,11 @@ async def cmd_goals(message: Message, state: FSMContext) -> None:
         }.get(goal.status, "⚪")
 
         days_left = (goal.deadline - date.today()).days
-        deadline_text = f"до {goal.deadline.strftime('%d.%m.%Y')}" if days_left > 0 else "просрочено"
+        deadline_text = (
+            f"до {goal.deadline.strftime('%d.%m.%Y')}"
+            if days_left > 0
+            else "просрочено"
+        )
 
         text += f"{status_icon} *{goal.title}*\n"
         text += f"   📅 {deadline_text} ({days_left} дн.)\n\n"
@@ -119,7 +121,13 @@ async def on_goal_select(
     if stages:
         text += "*Этапы:*\n"
         for i, stage in enumerate(stages, 1):
-            icon = "✅" if stage.status == "completed" else "🔵" if stage.status == "active" else "⚪"
+            icon = (
+                "✅"
+                if stage.status == "completed"
+                else "🔵"
+                if stage.status == "active"
+                else "⚪"
+            )
             text += f"{icon} {i}. {stage.title} ({stage.progress}%)\n"
     else:
         text += "_Нет этапов_\n"
@@ -148,7 +156,7 @@ async def on_edit_stages(
 
     stages = await goal.stages.all().order_by("order")
 
-    text = f"✏️ *Редактирование этапов*\n\n"
+    text = "✏️ *Редактирование этапов*\n\n"
     text += f"Цель: _{goal.title}_\n\n"
 
     if stages:
@@ -210,9 +218,7 @@ async def process_stage_name(message: Message, state: FSMContext) -> None:
     await stage.save()
 
     await message.answer(
-        f"✅ Название изменено:\n"
-        f"Было: _{old_title}_\n"
-        f"Стало: *{stage.title}*",
+        f"✅ Название изменено:\nБыло: _{old_title}_\nСтало: *{stage.title}*",
     )
 
     # Возвращаемся к списку этапов
@@ -235,7 +241,7 @@ async def on_add_stage(
     await state.set_state(GoalManageStates.adding_stage)
 
     await callback.message.edit_text(
-        "➕ *Новый этап*\n\n" "Введи название нового этапа (или /cancel для отмены):"
+        "➕ *Новый этап*\n\nВведи название нового этапа (или /cancel для отмены):"
     )
     await callback.answer()
 
@@ -273,7 +279,8 @@ async def process_new_stage(message: Message, state: FSMContext) -> None:
 
     await message.answer(f"✅ Этап *{new_stage.title}* добавлен!")
 
-    # Обновляем список этапов
+    # Обновляем список этапов (перезагружаем goal с prefetch)
+    goal = await Goal.get_or_none(id=goal_id).prefetch_related("stages")
     stages = await goal.stages.all().order_by("order")
     await state.set_state(GoalManageStates.editing_stages)
     await message.answer(
@@ -282,9 +289,7 @@ async def process_new_stage(message: Message, state: FSMContext) -> None:
     )
 
 
-@router.callback_query(
-    StageManageCallback.filter(F.action == StageManageAction.delete)
-)
+@router.callback_query(StageManageCallback.filter(F.action == StageManageAction.delete))
 async def on_delete_stage(
     callback: CallbackQuery, callback_data: StageManageCallback, state: FSMContext
 ) -> None:
@@ -393,15 +398,13 @@ async def on_resume_goal(
     await goal.save()
 
     await callback.message.edit_text(
-        f"▶️ Цель *{goal.title}* возобновлена!\n\n" "Жми *Утро* — спланируем день.",
+        f"▶️ Цель *{goal.title}* возобновлена!\n\nЖми *Утро* — спланируем день.",
         reply_markup=main_menu_keyboard(),
     )
     await callback.answer()
 
 
-@router.callback_query(
-    GoalManageCallback.filter(F.action == GoalManageAction.complete)
-)
+@router.callback_query(GoalManageCallback.filter(F.action == GoalManageAction.complete))
 async def on_complete_goal(
     callback: CallbackQuery, callback_data: GoalManageCallback, state: FSMContext
 ) -> None:
@@ -477,9 +480,7 @@ async def confirm_delete_goal(
 
     await state.clear()
     await callback.message.edit_text(
-        f"✅ Цель _{title}_ и все её этапы удалены.\n\n"
-        "Создай новую цель через /start.",
+        f"✅ Цель _{title}_ и все её этапы удалены.\n\nСоздай новую цель через /start.",
         reply_markup=main_menu_keyboard(),
     )
     await callback.answer()
-

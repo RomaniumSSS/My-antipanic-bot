@@ -7,16 +7,13 @@ from aiogram.fsm.storage.memory import MemoryStorage, StorageKey
 from src.bot.callbacks.data import (
     BlockerCallback,
     BlockerType,
-    MicrohitFeedbackAction,
-    MicrohitFeedbackCallback,
     StepAction,
     StepCallback,
 )
 from src.bot.handlers.steps import step_stuck
-from src.bot.handlers.stuck import blocker_other, microhit_feedback
+from src.bot.handlers.stuck import blocker_other
 from src.bot.states import StuckStates
 from src.database.models import Goal, Stage, Step, User
-from src.services.ai import ai_service
 
 
 class DummyUser:
@@ -129,10 +126,14 @@ async def test_repeated_stuck_on_same_step_does_not_duplicate_flow(db: None) -> 
     second_data = await state.get_data()
 
     assert await state.get_state() == StuckStates.waiting_for_blocker.state
-    assert first_data == second_data == {
-        "stuck_step_id": step.id,
-        "stuck_step_title": step.title,
-    }
+    assert (
+        first_data
+        == second_data
+        == {
+            "stuck_step_id": step.id,
+            "stuck_step_title": step.title,
+        }
+    )
     assert len(msg.sent) == 2  # два edit_text вместо накопления новых шагов/состояний
 
 
@@ -152,8 +153,9 @@ async def test_resolved_stuck_step_returns_to_regular_flow(
     )
 
     # Mock resolve_stuck_use_case to return multiple options (Stage 2.3)
-    from src.core.use_cases.resolve_stuck import MicrohitOption, resolve_stuck_use_case
     from dataclasses import dataclass
+
+    from src.core.use_cases.resolve_stuck import MicrohitOption, resolve_stuck_use_case
 
     @dataclass
     class FakeResult:
@@ -171,7 +173,9 @@ async def test_resolved_stuck_step_returns_to_regular_flow(
     async def fake_generate_options(*args, **kwargs):
         return FakeResult()
 
-    monkeypatch.setattr(resolve_stuck_use_case, "generate_microhit_options", fake_generate_options)
+    monkeypatch.setattr(
+        resolve_stuck_use_case, "generate_microhit_options", fake_generate_options
+    )
 
     await blocker_other(
         DummyCallback(message=msg, from_user=msg.from_user),
@@ -200,4 +204,3 @@ async def test_stuck_flow_on_missing_step_uses_fallback(db: None) -> None:
     assert await state.get_state() is None
     assert await state.get_data() == {}
     assert msg.sent[-1]["text"] == "Шаг не найден."
-

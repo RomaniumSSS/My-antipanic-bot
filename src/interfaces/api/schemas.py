@@ -3,10 +3,8 @@ Pydantic schemas for TMA API responses.
 """
 
 from datetime import date, datetime
-from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
-
 
 # ============ User Schemas ============
 
@@ -17,8 +15,8 @@ class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     telegram_id: int
-    username: Optional[str] = None
-    first_name: Optional[str] = None
+    username: str | None = None
+    first_name: str | None = None
 
     # Gamification
     xp: int
@@ -68,7 +66,7 @@ class GoalDetailResponse(BaseModel):
 
     id: int
     title: str
-    description: Optional[str] = None
+    description: str | None = None
     start_date: date
     deadline: date
     status: str
@@ -120,7 +118,7 @@ class StepResponse(BaseModel):
     difficulty: str
     estimated_minutes: int
     xp_reward: int
-    scheduled_date: Optional[date] = None
+    scheduled_date: date | None = None
     status: str
 
 
@@ -154,7 +152,7 @@ class CompleteStepResponse(BaseModel):
 class SkipStepRequest(BaseModel):
     """Request to skip a step."""
 
-    reason: Optional[str] = "Не подошло"
+    reason: str | None = "Не подошло"
 
 
 class SkipStepResponse(BaseModel):
@@ -170,7 +168,7 @@ class MicroHitRequest(BaseModel):
     """Request to generate micro-action for stuck state."""
 
     step_id: int
-    blocker_text: Optional[str] = None
+    blocker_text: str | None = None
 
 
 class MicroHitResponse(BaseModel):

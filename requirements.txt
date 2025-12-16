@@ -9,6 +9,7 @@ tenacity>=8.2.0
 pytest>=7.4.0
 pytest-asyncio>=0.23.0
 ruff>=0.1.0
+mypy>=1.7.0
 
 # Production dependencies
 asyncpg>=0.29.0

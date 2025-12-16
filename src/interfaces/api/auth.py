@@ -10,7 +10,6 @@ import hmac
 import json
 import urllib.parse
 from dataclasses import dataclass
-from typing import Optional
 
 from fastapi import HTTPException, Request, status
 
@@ -23,14 +22,14 @@ class TelegramUser:
 
     id: int
     first_name: str
-    last_name: Optional[str] = None
-    username: Optional[str] = None
-    language_code: Optional[str] = None
+    last_name: str | None = None
+    username: str | None = None
+    language_code: str | None = None
     is_premium: bool = False
-    photo_url: Optional[str] = None
+    photo_url: str | None = None
 
 
-def validate_init_data(init_data: str, bot_token: str) -> Optional[dict]:
+def validate_init_data(init_data: str, bot_token: str) -> dict | None:
     """
     Validate Telegram WebApp initData.
 
@@ -79,7 +78,7 @@ def validate_init_data(init_data: str, bot_token: str) -> Optional[dict]:
     return data
 
 
-def parse_telegram_user(data: dict) -> Optional[TelegramUser]:
+def parse_telegram_user(data: dict) -> TelegramUser | None:
     """
     Parse user object from validated initData.
 

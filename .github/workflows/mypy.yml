@@ -1,0 +1,36 @@
+name: Type Check
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  mypy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        pip install --upgrade pip
+        pip install mypy
+        pip install -r requirements.txt
+    
+    - name: Run mypy on core modules
+      run: |
+        mypy src/core/domain/ --config-file=mypy.ini
+        mypy src/core/use_cases/ --config-file=mypy.ini
+        mypy src/storage/ --config-file=mypy.ini
+    
+    - name: Run mypy on full project (allow failures)
+      continue-on-error: true
+      run: mypy src/ --config-file=mypy.ini
+

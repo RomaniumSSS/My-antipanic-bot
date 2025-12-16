@@ -66,7 +66,7 @@ async def log_step_assignment(
         daily_log.assigned_step_ids = assigned
 
     if energy_level is not None and daily_log.energy_level is None:
-        daily_log.energy_level = energy_level
+        daily_log.energy_level = energy_level  # type: ignore[unreachable]
 
     if mood_text and not daily_log.mood_text:
         daily_log.mood_text = mood_text

@@ -49,7 +49,7 @@ class Goal(models.Model):
     """Цель пользователя."""
 
     id = fields.IntField(primary_key=True)
-    user = fields.ForeignKeyField(
+    user: fields.ForeignKeyRelation[User] = fields.ForeignKeyField(
         "models.User", related_name="goals", on_delete=fields.CASCADE
     )
 
@@ -75,7 +75,7 @@ class Stage(models.Model):
     """Этап цели (2-4 этапа на цель)."""
 
     id = fields.IntField(primary_key=True)
-    goal = fields.ForeignKeyField(
+    goal: fields.ForeignKeyRelation[Goal] = fields.ForeignKeyField(
         "models.Goal", related_name="stages", on_delete=fields.CASCADE
     )
 
@@ -105,7 +105,7 @@ class Step(models.Model):
     """
 
     id = fields.IntField(primary_key=True)
-    stage = fields.ForeignKeyField(
+    stage: fields.ForeignKeyRelation[Stage] = fields.ForeignKeyField(
         "models.Stage", related_name="steps", on_delete=fields.CASCADE
     )
 
@@ -138,7 +138,7 @@ class DailyLog(models.Model):
     """
 
     id = fields.IntField(primary_key=True)
-    user = fields.ForeignKeyField(
+    user: fields.ForeignKeyRelation[User] = fields.ForeignKeyField(
         "models.User", related_name="daily_logs", on_delete=fields.CASCADE
     )
 
@@ -149,13 +149,13 @@ class DailyLog(models.Model):
     mood_text = fields.CharField(max_length=100, null=True)  # "тревожно", "бодро"
 
     # Назначенные шаги (JSON: список ID шагов)
-    assigned_step_ids = fields.JSONField(default=[])
+    assigned_step_ids: list[int] = fields.JSONField(default=[])
 
     # Выполненные шаги (JSON: список ID шагов)
-    completed_step_ids = fields.JSONField(default=[])
+    completed_step_ids: list[int] = fields.JSONField(default=[])
 
     # Причины пропуска (JSON: {"step_id": "причина"})
-    skip_reasons = fields.JSONField(default={})
+    skip_reasons: dict[str, str] = fields.JSONField(default={})
 
     # Вечерняя оценка дня (1-5 или emoji)
     day_rating = fields.CharField(max_length=20, null=True)

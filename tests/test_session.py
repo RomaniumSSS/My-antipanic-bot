@@ -1,5 +1,5 @@
-from datetime import date, timedelta
 import logging
+from datetime import date, timedelta
 
 import pytest
 
@@ -165,7 +165,9 @@ async def test_ensure_active_stage_advances_and_completes(db: None) -> None:
     """Finished stage should complete and next pending becomes active, goal closes when done."""
     user = await User.create(telegram_id=201)
     goal, first = await _goal_with_stage(user, status="active", progress=100, order=1)
-    _, second = await _goal_with_stage(user, goal=goal, status="pending", progress=0, order=2)
+    _, second = await _goal_with_stage(
+        user, goal=goal, status="pending", progress=0, order=2
+    )
 
     current = await session_service.ensure_active_stage(goal)
     assert current is not None
@@ -240,7 +242,9 @@ async def test_create_body_step_logs_daily(db: None) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_task_micro_action_short_path(db: None, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_get_task_micro_action_short_path(
+    db: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Short micro action uses generate_micro_step and logs DailyLog entry."""
     user = await User.create(telegram_id=501)
     goal, _ = await _goal_with_stage(user, status="active", progress=0)
@@ -248,7 +252,9 @@ async def test_get_task_micro_action_short_path(db: None, monkeypatch: pytest.Mo
     async def fake_generate_micro_step(*args, **kwargs) -> str:
         return "Сделать короткий шаг"
 
-    monkeypatch.setattr(session_service.ai_service, "generate_micro_step", fake_generate_micro_step)
+    monkeypatch.setattr(
+        session_service.ai_service, "generate_micro_step", fake_generate_micro_step
+    )
 
     step = await session_service.get_task_micro_action(
         user=user, goal=goal, tension=4, max_minutes=5
@@ -262,7 +268,9 @@ async def test_get_task_micro_action_short_path(db: None, monkeypatch: pytest.Mo
 
 
 @pytest.mark.asyncio
-async def test_get_task_micro_action_long_path(db: None, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_get_task_micro_action_long_path(
+    db: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Longer sprint path should pick first fitting suggestion and map XP by difficulty."""
     user = await User.create(telegram_id=601)
     goal, _ = await _goal_with_stage(user, status="active", progress=0)
@@ -273,7 +281,9 @@ async def test_get_task_micro_action_long_path(db: None, monkeypatch: pytest.Mon
             {"title": "Запасной", "minutes": 25, "difficulty": "hard"},
         ]
 
-    monkeypatch.setattr(session_service.ai_service, "generate_steps", fake_generate_steps)
+    monkeypatch.setattr(
+        session_service.ai_service, "generate_steps", fake_generate_steps
+    )
 
     step = await session_service.get_task_micro_action(
         user=user, goal=goal, tension=2, max_minutes=20
@@ -284,4 +294,3 @@ async def test_get_task_micro_action_long_path(db: None, monkeypatch: pytest.Mon
     assert step.estimated_minutes == 12
     assert step.xp_reward == 20
     assert step.id in daily.assigned_step_ids
-

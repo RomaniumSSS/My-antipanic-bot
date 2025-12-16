@@ -85,4 +85,3 @@ async def test_morning_creates_new_log_even_if_evening_missing(db: None) -> None
     assert today_log.completed_step_ids == []
     await stage.refresh_from_db()
     assert stage.status == "active"
-

@@ -21,8 +21,7 @@ import asyncpg
 from tortoise import Tortoise
 
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -33,8 +32,7 @@ async def migrate_data(sqlite_path: str, postgres_url: str):
     # Connect to SQLite (source)
     logger.info("Connecting to SQLite...")
     await Tortoise.init(
-        db_url=f"sqlite://{sqlite_path}",
-        modules={"models": ["src.database.models"]}
+        db_url=f"sqlite://{sqlite_path}", modules={"models": ["src.database.models"]}
     )
 
     # Import models after Tortoise init
@@ -50,7 +48,7 @@ async def migrate_data(sqlite_path: str, postgres_url: str):
         await Tortoise.close_connections()
         await Tortoise.init(
             db_url=postgres_url.replace("postgres://", "asyncpg://"),
-            modules={"models": ["src.database.models", "aerich.models"]}
+            modules={"models": ["src.database.models", "aerich.models"]},
         )
         await Tortoise.generate_schemas()
 
@@ -58,7 +56,7 @@ async def migrate_data(sqlite_path: str, postgres_url: str):
         await Tortoise.close_connections()
         await Tortoise.init(
             db_url=f"sqlite://{sqlite_path}",
-            modules={"models": ["src.database.models"]}
+            modules={"models": ["src.database.models"]},
         )
 
         # Migrate Users
@@ -79,10 +77,17 @@ async def migrate_data(sqlite_path: str, postgres_url: str):
                 SET username = EXCLUDED.username
                 RETURNING id
                 """,
-                user.telegram_id, user.username, user.first_name,
-                user.xp, user.level, user.streak_days, user.streak_last_date,
-                user.reminder_morning, user.reminder_evening,
-                user.timezone_offset, user.created_at
+                user.telegram_id,
+                user.username,
+                user.first_name,
+                user.xp,
+                user.level,
+                user.streak_days,
+                user.streak_last_date,
+                user.reminder_morning,
+                user.reminder_evening,
+                user.timezone_offset,
+                user.created_at,
             )
             user_mapping[user.id] = pg_id
 
@@ -103,8 +108,13 @@ async def migrate_data(sqlite_path: str, postgres_url: str):
                 VALUES ($1, $2, $3, $4, $5, $6, $7)
                 RETURNING id
                 """,
-                user_mapping[goal.user_id], goal.title, goal.description,
-                goal.start_date, goal.deadline, goal.status, goal.created_at
+                user_mapping[goal.user_id],
+                goal.title,
+                goal.description,
+                goal.start_date,
+                goal.deadline,
+                goal.status,
+                goal.created_at,
             )
             goal_mapping[goal.id] = pg_id
 
@@ -125,8 +135,13 @@ async def migrate_data(sqlite_path: str, postgres_url: str):
                 VALUES ($1, $2, $3, $4, $5, $6, $7)
                 RETURNING id
                 """,
-                goal_mapping[stage.goal_id], stage.title, stage.order,
-                stage.start_date, stage.end_date, stage.progress, stage.status
+                goal_mapping[stage.goal_id],
+                stage.title,
+                stage.order,
+                stage.start_date,
+                stage.end_date,
+                stage.progress,
+                stage.status,
             )
             stage_mapping[stage.id] = pg_id
 
@@ -145,9 +160,14 @@ async def migrate_data(sqlite_path: str, postgres_url: str):
                 )
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 """,
-                stage_mapping[step.stage_id], step.title, step.difficulty,
-                step.estimated_minutes, step.xp_reward, step.scheduled_date,
-                step.status, step.completed_at
+                stage_mapping[step.stage_id],
+                step.title,
+                step.difficulty,
+                step.estimated_minutes,
+                step.xp_reward,
+                step.scheduled_date,
+                step.status,
+                step.completed_at,
             )
 
         logger.info(f"Migrated {len(steps)} steps")
@@ -167,9 +187,16 @@ async def migrate_data(sqlite_path: str, postgres_url: str):
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                 ON CONFLICT (user_id, date) DO NOTHING
                 """,
-                user_mapping[log.user_id], log.date, log.energy_level,
-                log.mood_text, log.assigned_step_ids, log.completed_step_ids,
-                log.skip_reasons, log.day_rating, log.xp_earned, log.created_at
+                user_mapping[log.user_id],
+                log.date,
+                log.energy_level,
+                log.mood_text,
+                log.assigned_step_ids,
+                log.completed_step_ids,
+                log.skip_reasons,
+                log.day_rating,
+                log.xp_earned,
+                log.created_at,
             )
 
         logger.info(f"Migrated {len(logs)} daily logs")
@@ -186,8 +213,11 @@ async def migrate_data(sqlite_path: str, postgres_url: str):
                 )
                 VALUES ($1, $2, $3, $4, $5)
                 """,
-                user_mapping[qr.user_id], qr.answers, qr.dependency_score,
-                qr.diagnosis, qr.completed_at
+                user_mapping[qr.user_id],
+                qr.answers,
+                qr.dependency_score,
+                qr.diagnosis,
+                qr.completed_at,
             )
 
         logger.info(f"Migrated {len(quiz_results)} quiz results")
@@ -200,11 +230,11 @@ async def migrate_data(sqlite_path: str, postgres_url: str):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Migrate data from SQLite to PostgreSQL")
+    parser = argparse.ArgumentParser(
+        description="Migrate data from SQLite to PostgreSQL"
+    )
     parser.add_argument(
-        "--sqlite-path",
-        default="db.sqlite3",
-        help="Path to SQLite database file"
+        "--sqlite-path", default="db.sqlite3", help="Path to SQLite database file"
     )
     args = parser.parse_args()
 

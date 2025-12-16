@@ -9,7 +9,12 @@ AICODE-NOTE: Упрощено для Этапа 1.2 TMA миграции.
 from aiogram import F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
+from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+    WebAppInfo,
+)
 
 from src.bot.keyboards import main_menu_keyboard
 from src.bot.states import OnboardingStates
@@ -31,6 +36,7 @@ def tma_keyboard() -> InlineKeyboardMarkup | None:
             ]
         ]
     )
+
 
 router = Router()
 
@@ -69,7 +75,9 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
     user = await get_or_create_user(message)
 
     # Проверяем активную цель
-    active_goal = await Goal.filter(user=user, status="active").first()
+    active_goal = (
+        await Goal.filter(user=user, status="active").prefetch_related("stages").first()
+    )
 
     if active_goal:
         # Есть активная цель — показываем статус
@@ -139,7 +147,9 @@ async def cmd_id(message: Message) -> None:
 async def cmd_status(message: Message) -> None:
     """Показать текущий прогресс по цели."""
     user = await get_or_create_user(message)
-    active_goal = await Goal.filter(user=user, status="active").first()
+    active_goal = (
+        await Goal.filter(user=user, status="active").prefetch_related("stages").first()
+    )
 
     if not active_goal:
         await message.answer(
@@ -179,12 +189,10 @@ async def cmd_app(message: Message) -> None:
     keyboard = tma_keyboard()
     if keyboard:
         await message.answer(
-            "📱 *Antipanic App*\n\n"
-            "Статистика, цели и прогресс в одном месте.",
+            "📱 *Antipanic App*\n\nСтатистика, цели и прогресс в одном месте.",
             reply_markup=keyboard,
         )
     else:
         await message.answer(
-            "⚠️ Mini App пока не настроен.\n"
-            "Используй /status для просмотра прогресса."
+            "⚠️ Mini App пока не настроен.\nИспользуй /status для просмотра прогресса."
         )

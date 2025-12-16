@@ -25,10 +25,7 @@ logger = logging.getLogger(__name__)
 
 async def get_stats(db_url: str) -> dict:
     """Get database statistics."""
-    await Tortoise.init(
-        db_url=db_url,
-        modules={"models": ["src.database.models"]}
-    )
+    await Tortoise.init(db_url=db_url, modules={"models": ["src.database.models"]})
 
     from src.database.models import DailyLog, Goal, QuizResult, Stage, Step, User
 
@@ -100,7 +97,7 @@ async def main():
 
     elif args.db and args.output:
         stats = await get_stats(args.db)
-        with open(args.output, 'w') as f:
+        with open(args.output, "w") as f:
             json.dump(stats, f, indent=2)
         logger.info(f"Stats saved to {args.output}")
         logger.info(json.dumps(stats, indent=2))
