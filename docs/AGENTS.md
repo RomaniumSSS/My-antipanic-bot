@@ -11,7 +11,6 @@
    - `AIOGRAM_RULES.md` — **ОБЯЗАТЕЛЬНО** при работе с ботом
    - `TORTOISE_RULES.md` — **ОБЯЗАТЕЛЬНО** при работе с БД
    - `OPENAI_RULES.md` — при работе с AI сервисом
-   - `APSCHEDULER_RULES.md` — при работе с напоминаниями
 
 > Почему это важно? Вы не можете эффективно работать над проектом, не понимая его архитектуру, бизнес-логику и текущий статус, описанные в документации. Не галлюцинируйте — изучите документацию.
 
@@ -41,7 +40,7 @@
 - `AICODE-QUESTION:` блокер/вопрос для уточнения.
 
 ## 6. Технические правила (Vibe-Coding Style)
-1. Стек: Python 3.11+, aiogram 3.x, Tortoise ORM, SQLite, OpenAI API, APScheduler.
+1. Стек: Python 3.11+, aiogram 3.x, Tortoise ORM, SQLite, OpenAI API.
 2. Асинхронность: весь I/O (БД, Telegram, внешние API) — `async/await`.
 3. Структура: соблюдай дерево из `docs/tech.md`; не плодить файлы в корне, если им место в `handlers/`, `services/` и т.д.
 4. Безопасность: токены только в `.env`; не хардкодить секреты.
@@ -71,14 +70,6 @@
 - **AsyncOpenAI** — только async клиент.
 - **Retry** — tenacity для transient errors.
 - **Промпты** — выноси в константы, структурируй.
-
-### 6.4 APScheduler
-**Читай `docs/APSCHEDULER_RULES.md` при работе с напоминаниями.**
-
-Ключевые правила:
-- **AsyncScheduler** — только async.
-- **conflict_policy** — указывай при добавлении schedules с фиксированным ID.
-- **Lifecycle** — start в `on_startup`, stop в `on_shutdown`.
 
 ## 7. Самопроверка перед завершением
 Перед "Готово" проверь:

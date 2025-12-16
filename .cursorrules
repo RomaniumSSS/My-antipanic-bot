@@ -62,5 +62,3 @@ Create `plans/NNN-objective.md` → get approval → implement.
 - [ ] `await` before DB/API calls?
 
 ---
-
-See `docs/PROJECT_DNA.md` for project philosophy.
