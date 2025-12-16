@@ -11,7 +11,7 @@ from typing import Any
 
 from aiogram import BaseMiddleware
 from aiogram.dispatcher.event.bases import SkipHandler
-from aiogram.types import CallbackQuery, Message, TelegramObject
+from aiogram.types import CallbackQuery, InaccessibleMessage, Message, TelegramObject
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,8 @@ class ErrorHandlingMiddleware(BaseMiddleware):
                 if isinstance(event, Message):
                     await event.answer(error_message)
                 elif isinstance(event, CallbackQuery):
-                    await event.message.answer(error_message)
+                    if event.message and not isinstance(event.message, InaccessibleMessage):
+                        await event.message.answer(error_message)
                     # Всегда отвечаем на callback, чтобы убрать часики
                     await event.answer("Ошибка обработки")
             except Exception as send_error:

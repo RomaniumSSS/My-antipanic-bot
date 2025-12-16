@@ -34,6 +34,7 @@ from src.bot.keyboards import (
     microhit_options_keyboard,
 )
 from src.bot.states import StuckStates
+from src.bot.utils import get_callback_message
 from src.core.domain.stuck_rules import get_blocker_emoji
 from src.core.use_cases.resolve_stuck import resolve_stuck_use_case
 from src.database.models import DailyLog, Goal, Step, User
@@ -101,9 +102,8 @@ async def cmd_stuck(message: Message, state: FSMContext) -> None:
 )
 async def blocker_unclear(callback: CallbackQuery, state: FSMContext) -> None:
     """Блокер "не знаю с чего начать" — запрашиваем детали."""
+    msg = get_callback_message(callback)
     await callback.answer()
-    if not callback.message or isinstance(callback.message, InaccessibleMessage):
-        return
 
     await state.update_data(blocker_type=BlockerType.unclear.value)
     await state.set_state(StuckStates.waiting_for_details)
@@ -111,7 +111,7 @@ async def blocker_unclear(callback: CallbackQuery, state: FSMContext) -> None:
     data = await state.get_data()
     step_title = data.get("stuck_step_title", "задача")
 
-    await callback.message.edit_text(
+    await msg.edit_text(
         f"Понял, не знаешь с чего начать *{step_title}*.\n\n"
         "Расскажи подробнее — что именно непонятно?\n"
         "Или напиши `-` если не хочешь уточнять."
@@ -123,6 +123,7 @@ async def blocker_other(
     callback: CallbackQuery, callback_data: BlockerCallback, state: FSMContext
 ) -> None:
     """Обработка других типов блокеров — сразу к вариантам микро-ударов."""
+    msg = get_callback_message(callback)
     await callback.answer()
 
     blocker_type = callback_data.type
@@ -264,6 +265,7 @@ async def microhit_option_selected(
 
     User clicked one of the option buttons → show that option with action buttons.
     """
+    msg = get_callback_message(callback)
     await callback.answer()
     if not callback.message or isinstance(callback.message, InaccessibleMessage):
         return
@@ -277,7 +279,7 @@ async def microhit_option_selected(
     options = data.get("microhit_options", [])
 
     if index < 1 or index > len(options):
-        await callback.message.edit_text(
+        await msg.edit_text(
             "Не нашёл этот вариант. Попробуй ещё раз или напиши /morning"
         )
         return
@@ -294,7 +296,7 @@ async def microhit_option_selected(
 
     feedback_markup = microhit_feedback_keyboard(step_id, blocker)
 
-    await callback.message.edit_text(result_text, reply_markup=feedback_markup)
+    await msg.edit_text(result_text, reply_markup=feedback_markup)
     await state.clear()
 
     logger.info(f"User selected microhit option {index} for blocker='{blocker.value}'")
@@ -305,6 +307,7 @@ async def microhit_feedback(
     callback: CallbackQuery, callback_data: MicrohitFeedbackCallback, state: FSMContext
 ) -> None:
     """Обработка реакции на микро-удар."""
+    msg = get_callback_message(callback)
     await callback.answer()
     if not callback.message or isinstance(callback.message, InaccessibleMessage):
         return
@@ -314,13 +317,13 @@ async def microhit_feedback(
     blocker = callback_data.blocker
 
     if action == MicrohitFeedbackAction.do:
-        await callback.message.edit_text(
+        await msg.edit_text(
             "🔥 Отлично! Действуй. Напиши, если нужна будет ещё подсказка."
         )
-        await callback.message.answer(
+        await msg.answer(
             "Когда сделаешь — отмечай в /status или жми /morning"
         )
-        await callback.message.answer(
+        await msg.answer(
             "Главное меню:", reply_markup=main_menu_keyboard()
         )
         return
@@ -340,7 +343,7 @@ async def microhit_feedback(
         )
         await state.set_state(StuckStates.waiting_for_feedback_details)
 
-        await callback.message.edit_text(
+        await msg.edit_text(
             "Ок, напиши, что именно хочешь уточнить — попробую помочь."
         )
         return
@@ -351,13 +354,13 @@ async def microhit_feedback(
             return
         user = await User.get_or_none(telegram_id=callback.from_user.id)
         if not user:
-            await callback.message.edit_text("Не нашёл профиль. Напиши /start.")
+            await msg.edit_text("Не нашёл профиль. Напиши /start.")
             return
 
         # Get active goal for context
         active_goal = await Goal.filter(user=user, status="active").first()
         if not active_goal:
-            await callback.message.edit_text("Не нашёл активную цель. Напиши /start.")
+            await msg.edit_text("Не нашёл активную цель. Напиши /start.")
             return
 
         # Get step title

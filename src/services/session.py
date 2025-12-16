@@ -135,8 +135,9 @@ async def log_antipanic_action(
             daily_log.completed_step_ids = list(completed_ids)
             daily_log.xp_earned = (daily_log.xp_earned or 0) + step.xp_reward
 
-    if daily_log.energy_level is None:
-        daily_log.energy_level = energy_hint or 5
+    # Update energy/mood if not set (for existing records)
+    if energy_hint and daily_log.energy_level is None:
+        daily_log.energy_level = energy_hint  # type: ignore[unreachable]
     if mood_hint and not daily_log.mood_text:
         daily_log.mood_text = mood_hint
 

@@ -53,6 +53,7 @@ async def main():
     )
 
     # FSM Storage: Redis для production, Memory для development
+    storage: RedisStorage | MemoryStorage
     if config.ENVIRONMENT == "production":
         redis = Redis.from_url(
             config.redis_url, decode_responses=True, encoding="utf-8"
@@ -177,7 +178,7 @@ async def main():
                     body_parts.append(message.get("body", b""))
 
             # Call FastAPI
-            await fastapi_app(scope, receive, send)
+            await fastapi_app(scope, receive, send)  # type: ignore[arg-type]
 
             # Build aiohttp response
             headers = {k.decode(): v.decode() for k, v in response_headers}

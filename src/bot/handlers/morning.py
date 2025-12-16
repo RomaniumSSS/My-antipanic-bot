@@ -34,6 +34,7 @@ from src.bot.keyboards import (
     tension_keyboard,
 )
 from src.bot.states import AntipanicSession
+from src.bot.utils import get_callback_message
 from src.core.use_cases.assign_morning_steps import assign_morning_steps_use_case
 from src.database.models import Goal, Stage, User
 from src.services.session import support_message
@@ -51,7 +52,8 @@ async def _ask_tension(target: Message | CallbackQuery, state: FSMContext, goal:
         "(0 — спокойно, 10 — паника)."
     )
     if isinstance(target, CallbackQuery):
-        await target.message.edit_text(text, reply_markup=tension_keyboard())
+        msg = get_callback_message(target)
+        await msg.edit_text(text, reply_markup=tension_keyboard())
     else:
         await target.answer(text, reply_markup=tension_keyboard())
 
@@ -146,6 +148,7 @@ async def select_goal(
     callback: CallbackQuery, callback_data: GoalSelectCallback, state: FSMContext
 ) -> None:
     """Выбор активной цели если их несколько."""
+    msg = get_callback_message(callback)
     await callback.answer()
     if not callback.from_user:
         return
@@ -154,8 +157,8 @@ async def select_goal(
     goal = await Goal.get_or_none(id=callback_data.goal_id, user=user)
     if not goal:
         await state.clear()
-        await callback.message.edit_text(
-            "Цель не найдена. Напиши /start", reply_markup=main_menu_keyboard()
+        await msg.edit_text(
+            "Цель не найдена. Напиши /start"
         )
         return
 
@@ -168,6 +171,7 @@ async def handle_tension_before(
     callback: CallbackQuery, callback_data: TensionCallback, state: FSMContext
 ) -> None:
     """После оценки напряжения → телесное действие."""
+    msg = get_callback_message(callback)
     await callback.answer()
     if not callback.from_user:
         return
@@ -175,7 +179,7 @@ async def handle_tension_before(
     user = await User.get_or_none(telegram_id=callback.from_user.id)
     if not user:
         await state.clear()
-        await callback.message.edit_text("Сначала напиши /start.")
+        await msg.edit_text("Сначала напиши /start.")
         return
 
     data = await state.get_data()
@@ -183,7 +187,7 @@ async def handle_tension_before(
     goal = await Goal.get_or_none(id=goal_id, user=user)
     if not goal:
         await state.clear()
-        await callback.message.edit_text("Цель не найдена. Напиши /start.")
+        await msg.edit_text("Цель не найдена. Напиши /start.")
         return
 
     tension = callback_data.value
@@ -196,19 +200,22 @@ async def handle_tension_before(
 
     if not result.success:
         await state.clear()
-        await callback.message.edit_text(
+        await msg.edit_text(
             f"Не получилось создать шаг: {result.error_message}",
-            reply_markup=main_menu_keyboard(),
         )
         return
 
     body_step = result.step
     body_text = result.action_text
 
+    if not body_step:
+        await msg.edit_text("Не удалось создать шаг.")
+        return
+
     await state.update_data(body_step_id=body_step.id)
     await state.set_state(AntipanicSession.doing_body_action)
 
-    await callback.message.edit_text(
+    await msg.edit_text(
         f"🤸 Разморозка на 2 минуты для цели *{goal.title}*.\n\n"
         f"👉 {body_text}\n\n"
         "Нажми «Шаг 1» когда сделаешь или «🆘» если нужен обходной путь.",
@@ -221,6 +228,7 @@ async def handle_tension_after(
     callback: CallbackQuery, callback_data: TensionCallback, state: FSMContext
 ) -> None:
     """Замер после действий → предложение углубиться или завершить."""
+    msg = get_callback_message(callback)
     await callback.answer()
     data = await state.get_data()
     before = data.get("tension_before")
@@ -230,7 +238,7 @@ async def handle_tension_after(
     await state.update_data(tension_after=after)
     await state.set_state(AntipanicSession.offered_deepen)
 
-    await callback.message.edit_text(
+    await msg.edit_text(
         f"{support}\n\nГотов попробовать ещё один шаг на 15–30 минут или завершаем?",
         reply_markup=deepen_keyboard(),
     )
@@ -241,6 +249,7 @@ async def handle_deepen_choice(
     callback: CallbackQuery, callback_data: DeepenCallback, state: FSMContext
 ) -> None:
     """Решение: пойти в мини-спринт или закончить сессию."""
+    msg = get_callback_message(callback)
     await callback.answer()
     if not callback.from_user:
         return
@@ -252,14 +261,13 @@ async def handle_deepen_choice(
 
     if not goal or not user:
         await state.clear()
-        await callback.message.edit_text("Цель не найдена. Напиши /start.")
+        await msg.edit_text("Цель не найдена. Напиши /start.")
         return
 
     if callback_data.action == DeepenAction.finish:
         await state.clear()
-        await callback.message.edit_text(
+        await msg.edit_text(
             "Фиксирую прогресс. Если будет ресурс — возвращайся позже 💚",
-            reply_markup=main_menu_keyboard(),
         )
         return
 
@@ -272,16 +280,18 @@ async def handle_deepen_choice(
     if not result.success:
         logger.error(f"Failed to create deepening step: {result.error_message}")
         await state.clear()
-        await callback.message.edit_text(
+        await msg.edit_text(
             f"Не получилось подобрать следующий шаг: {result.error_message}",
-            reply_markup=main_menu_keyboard(),
         )
         return
 
     deep_step = result.step
+    if not deep_step:
+        await msg.edit_text("Не удалось создать шаг.")
+        return
 
     await state.clear()
-    await callback.message.edit_text(
+    await msg.edit_text(
         "🚀 Поехали чуть глубже (до 30 минут).\n\n"
         f"👉 {deep_step.title}\n\n"
         "Отметь, когда сделаешь — или напиши /evening позже для итогов.",

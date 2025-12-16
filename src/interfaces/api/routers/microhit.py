@@ -78,7 +78,7 @@ async def create_microhit(
 
     # Convert to response format
     variants = [
-        MicroHitVariant(index=opt.index, text=opt.text) for opt in result.options
+        MicroHitVariant(index=opt.index, text=opt.text) for opt in (result.options or [])
     ]
 
     return MicroHitResponse(

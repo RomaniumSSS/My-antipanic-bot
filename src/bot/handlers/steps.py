@@ -40,6 +40,7 @@ from src.bot.states import (
     OnboardingStates,
     StuckStates,
 )
+from src.bot.utils import get_callback_message
 from src.core.use_cases.complete_step import CompleteStepUseCase
 from src.core.use_cases.skip_step import SkipStepUseCase
 from src.database.models import DailyLog, Goal, Step, User
@@ -77,6 +78,7 @@ async def step_done(
 
     AICODE-NOTE: Thin handler - вызывает use-case и показывает результат.
     """
+    msg = get_callback_message(callback)
     await callback.answer("✅ Отлично!")
 
     if not callback.from_user:
@@ -87,14 +89,14 @@ async def step_done(
     # 1. Получить пользователя
     user = await user_repo.get_user(callback.from_user.id)
     if not user:
-        await callback.message.edit_text("Пользователь не найден.")
+        await msg.edit_text("Пользователь не найден.")
         return
 
     # 2. Вызвать use-case для выполнения шага
     result = await complete_step_use_case.execute(step_id, user)
 
     if not result.success:
-        await callback.message.edit_text(f"Ошибка: {result.error_message}")
+        await msg.edit_text(f"Ошибка: {result.error_message}")
         return
 
     # 3. Проверяем, вызвано ли из evening flow или antipanic
@@ -121,10 +123,10 @@ async def step_done(
             # Все шаги выполнены
             if from_evening:
                 # Из evening flow - переходим к оценке дня
-                await state.set_state(EveningStates.rating_day)
+                await state.set_state(EveningStates.marking_done)
                 from src.bot.keyboards import rating_keyboard
 
-                await callback.message.edit_text(
+                await msg.edit_text(
                     f"🎉 *Все шаги отмечены!*\n\n{steps_text}\n\n"
                     f"Сделал всё. +{result.xp_earned} XP (всего: {result.total_xp}). "
                     f"Зачёт. Как прошёл день?",
@@ -132,7 +134,7 @@ async def step_done(
                 )
             else:
                 # Обычный flow
-                await callback.message.edit_text(
+                await msg.edit_text(
                     f"🎉 *Все шаги выполнены!*\n\n{steps_text}\n\n"
                     f"Готово. +{result.xp_earned} XP (всего: {result.total_xp}). "
                     f"Streak: {user.streak_days} дней — продолжай. "
@@ -142,13 +144,13 @@ async def step_done(
             # Есть ещё невыполненные шаги
             # Если из evening flow и больше нет pending - переходим к оценке
             if from_evening and not pending_steps:
-                await state.set_state(EveningStates.rating_day)
+                await state.set_state(EveningStates.marking_done)
                 from src.bot.keyboards import rating_keyboard
 
                 completed_steps = [s for s in steps if s.status == "completed"]
-                xp_earned = daily_log.xp_earned or 0
+                xp_earned = (daily_log.xp_earned or 0) if daily_log else 0
 
-                await callback.message.edit_text(
+                await msg.edit_text(
                     f"🌙 *Итоги дня*\n\n"
                     f"{steps_text}\n"
                     f"📊 Выполнено: {len(completed_steps)}/{len(steps)}\n"
@@ -162,14 +164,14 @@ async def step_done(
                 # AICODE-NOTE: Позитивный feedback после completion (CLAUDE_RULES.md § 2)
                 if pending_steps:
                     pending_ids = [s.id for s in pending_steps]
-                    await callback.message.edit_text(
+                    await msg.edit_text(
                         f"*Шаги на сегодня:*\n{steps_text}\n\n"
                         f"Сделал. +{result.xp_earned} XP. Двигаешься к цели.",
                         reply_markup=steps_list_keyboard(pending_ids),
                     )
                 else:
                     # Все pending отмечены, но не из evening flow
-                    await callback.message.edit_text(
+                    await msg.edit_text(
                         f"*Шаги на сегодня:*\n{steps_text}\n\n"
                         f"Сделал. +{result.xp_earned} XP (всего: {result.total_xp}). "
                         f"Streak: {user.streak_days} дней. Продолжай."
@@ -191,7 +193,7 @@ async def step_done(
                     )
                     await state.update_data(micro_step_id=micro_step.id)
                     await state.set_state(AntipanicSession.doing_micro_action)
-                    await callback.message.answer(
+                    await msg.answer(
                         "🔥 Тело включили, теперь микрошаг по задаче (2–5 минут):\n"
                         f"👉 {micro_step.title}",
                         reply_markup=steps_list_keyboard([micro_step.id]),
@@ -199,19 +201,19 @@ async def step_done(
                 except Exception as e:  # noqa: BLE001
                     logger.error(f"Failed to create micro action: {e}")
             else:
-                await callback.message.answer(
+                await msg.answer(
                     "Шаг сохранил. Обнови цель через /start, чтобы продолжить."
                 )
         elif is_antipanic_micro and step_id == data.get("micro_step_id"):
             if data.get("onboarding_sprint"):
                 await state.set_state(OnboardingSprintStates.paywall)
-                await callback.message.answer(
+                await msg.answer(
                     PAYWALL_TEXT,
                     reply_markup=paywall_keyboard(),
                 )
             else:
                 await state.set_state(AntipanicSession.rating_tension_after)
-                await callback.message.answer(
+                await msg.answer(
                     "Отметь, насколько сейчас напряжение (0–10):",
                     reply_markup=tension_keyboard(),
                 )
@@ -228,6 +230,7 @@ async def step_skip(
 
     AICODE-NOTE: Thin handler - вызывает use-case и показывает результат.
     """
+    msg = get_callback_message(callback)
     await callback.answer()
 
     if not callback.from_user:
@@ -246,14 +249,14 @@ async def step_skip(
         # 1. Получить пользователя
         user = await user_repo.get_user(callback.from_user.id)
         if not user:
-            await callback.message.edit_text("Пользователь не найден.")
+            await msg.edit_text("Пользователь не найден.")
             return
 
         # 2. Вызвать use-case для пропуска шага
         result = await skip_step_use_case.execute(step_id, user, reason="-")
 
         if not result.success:
-            await callback.message.edit_text(f"Ошибка: {result.error_message}")
+            await msg.edit_text(f"Ошибка: {result.error_message}")
             return
 
         data = await state.get_data()
@@ -272,18 +275,18 @@ async def step_skip(
                 )
                 await state.update_data(micro_step_id=micro_step.id)
                 await state.set_state(AntipanicSession.doing_micro_action)
-                await callback.message.edit_text(
+                await msg.edit_text(
                     "Ок, тело пропустили. Давай всё равно попробуем микрошаг по задаче:\n"
                     f"👉 {micro_step.title}",
                     reply_markup=steps_list_keyboard([micro_step.id]),
                 )
             else:
-                await callback.message.edit_text(
+                await msg.edit_text(
                     "Пропустили шаг. Обнови цель через /start, чтобы продолжить."
                 )
         else:
             await state.set_state(AntipanicSession.rating_tension_after)
-            await callback.message.edit_text(
+            await msg.edit_text(
                 "Принял. Оцени напряжение сейчас (0–10):",
                 reply_markup=tension_keyboard(),
             )
@@ -293,13 +296,13 @@ async def step_skip(
     # Получаем шаг для показа названия
     step = await Step.get_or_none(id=step_id)
     if not step:
-        await callback.message.edit_text("Шаг не найден.")
+        await msg.edit_text("Шаг не найден.")
         return
 
     await state.update_data(skipping_step_id=step_id)
     await state.set_state(EveningStates.waiting_for_skip_reason)
 
-    await callback.message.edit_text(
+    await msg.edit_text(
         f"Пропускаем: *{step.title}*\n\n"
         "Коротко напиши причину (или отправь `-` если не хочешь):"
     )
@@ -378,6 +381,7 @@ async def handle_paywall_choice(
     callback: CallbackQuery, callback_data: PaywallCallback, state: FSMContext
 ) -> None:
     """Обработка пейволла после мини-спринта."""
+    msg = get_callback_message(callback)
     await callback.answer()
 
     if not callback.from_user:
@@ -386,7 +390,7 @@ async def handle_paywall_choice(
     user = await User.get_or_none(telegram_id=callback.from_user.id)
     if not user:
         await state.clear()
-        await callback.message.edit_text(
+        await msg.edit_text(
             "Ошибка: пользователь не найден. Напиши /start"
         )
         return
@@ -399,14 +403,14 @@ async def handle_paywall_choice(
 
         # Переходим к созданию реальной цели
         await state.set_state(OnboardingStates.waiting_for_goal)
-        await callback.message.edit_text(
+        await msg.edit_text(
             "🔥 Отлично! Запускаю 3-дневную миссию.\n\n"
             "Я буду помогать тебе каждый день двигаться маленькими шагами. "
             "Без паралича, без прокрастинации.\n\n"
             "*Какую цель хочешь достичь?*\n"
             "Например: выучить Python, запустить блог, похудеть на 5 кг"
         )
-        await callback.message.answer(
+        await msg.answer(
             "Главное меню:",
             reply_markup=main_menu_keyboard(),
         )
@@ -418,10 +422,10 @@ async def handle_paywall_choice(
         await onboarding_goal.delete()
 
     await state.clear()
-    await callback.message.edit_text(
+    await msg.edit_text(
         "Окей, без проблем. Когда захочешь начать — жми /start"
     )
-    await callback.message.answer(
+    await msg.answer(
         "Главное меню:",
         reply_markup=main_menu_keyboard(),
     )
@@ -432,13 +436,14 @@ async def step_stuck(
     callback: CallbackQuery, callback_data: StepCallback, state: FSMContext
 ) -> None:
     """Переход в stuck flow."""
+    msg = get_callback_message(callback)
     await callback.answer()
 
     step_id = callback_data.step_id
     step = await Step.get_or_none(id=step_id)
 
     if not step:
-        await callback.message.edit_text("Шаг не найден.")
+        await msg.edit_text("Шаг не найден.")
         return
 
     await state.update_data(stuck_step_id=step_id, stuck_step_title=step.title)
@@ -447,7 +452,7 @@ async def step_stuck(
     # Импортируем клавиатуру здесь чтобы избежать circular import
     from src.bot.keyboards import blocker_keyboard
 
-    await callback.message.edit_text(
+    await msg.edit_text(
         f"🆘 Застрял на: *{step.title}*\n\nЧто мешает?",
         reply_markup=blocker_keyboard(),
     )

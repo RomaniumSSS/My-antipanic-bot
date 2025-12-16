@@ -72,7 +72,8 @@ class Settings(BaseSettings):
                 import json
 
                 try:
-                    return json.loads(v)
+                    parsed: list[int] = json.loads(v)
+                    return parsed
                 except json.JSONDecodeError:
                     pass
             return [int(x.strip()) for x in v.split(",") if x.strip().isdigit()]
@@ -127,4 +128,4 @@ class Settings(BaseSettings):
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
 
-config = Settings()
+config = Settings()  # type: ignore[call-arg]  # Pydantic loads from .env

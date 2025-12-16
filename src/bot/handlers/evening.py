@@ -20,6 +20,7 @@ from aiogram.types import Message
 
 from src.bot.keyboards import main_menu_keyboard, steps_list_keyboard
 from src.bot.states import EveningStates
+from src.bot.utils import get_callback_message
 from src.core.use_cases.complete_daily_reflection import (
     complete_daily_reflection_use_case,
 )
@@ -70,7 +71,7 @@ async def cmd_evening(message: Message, state: FSMContext) -> None:
             f"🌙 *Вечерний итог*\n\n"
             f"*Шаги дня:*\n{summary.steps_text}\n"
             f"Есть неотмеченные шаги. Отметь их или нажми кнопку ниже для завершения:",
-            reply_markup=steps_list_keyboard(summary.pending_step_ids),
+            reply_markup=steps_list_keyboard(summary.pending_step_ids or []),
         )
         await state.set_state(EveningStates.marking_done)
     else:

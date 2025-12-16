@@ -53,7 +53,7 @@ def validate_init_data(init_data: str, bot_token: str) -> dict | None:
 
     # Extract hash
     received_hash = data.pop("hash", None)
-    if not received_hash:
+    if not received_hash or not isinstance(received_hash, str):
         return None
 
     # Build data-check-string (sorted key=value pairs joined by \n)

@@ -52,6 +52,7 @@ class Goal(models.Model):
     user: fields.ForeignKeyRelation[User] = fields.ForeignKeyField(
         "models.User", related_name="goals", on_delete=fields.CASCADE
     )
+    user_id: int  # AICODE-NOTE: MyPy hint for FK (Tortoise auto-creates this)
 
     title = fields.CharField(max_length=255)
     description = fields.TextField(null=True)

@@ -31,6 +31,7 @@ from src.bot.keyboards import (
     stages_manage_keyboard,
 )
 from src.bot.states import GoalManageStates
+from src.bot.utils import get_callback_message
 from src.database.models import Goal, Stage, User
 
 logger = logging.getLogger(__name__)
@@ -105,10 +106,11 @@ async def on_goal_select(
     callback: CallbackQuery, callback_data: GoalSelectCallback, state: FSMContext
 ) -> None:
     """Показать детали конкретной цели."""
+    msg = get_callback_message(callback)
     goal = await Goal.get_or_none(id=callback_data.goal_id).prefetch_related("stages")
 
     if not goal:
-        await callback.message.edit_text("Цель не найдена.")
+        await msg.edit_text("Цель не найдена.")
         return
 
     stages = await goal.stages.all().order_by("order")
@@ -135,7 +137,7 @@ async def on_goal_select(
     await state.update_data(current_goal_id=goal.id)
     await state.set_state(GoalManageStates.viewing_goal)
 
-    await callback.message.edit_text(
+    await msg.edit_text(
         text, reply_markup=goal_manage_keyboard(goal.id, goal.status == "active")
     )
     await callback.answer()
@@ -148,10 +150,11 @@ async def on_edit_stages(
     callback: CallbackQuery, callback_data: GoalManageCallback, state: FSMContext
 ) -> None:
     """Показать список этапов для редактирования."""
+    msg = get_callback_message(callback)
     goal = await Goal.get_or_none(id=callback_data.goal_id).prefetch_related("stages")
 
     if not goal:
-        await callback.message.edit_text("Цель не найдена.")
+        await msg.edit_text("Цель не найдена.")
         return
 
     stages = await goal.stages.all().order_by("order")
@@ -167,7 +170,7 @@ async def on_edit_stages(
     await state.update_data(current_goal_id=goal.id)
     await state.set_state(GoalManageStates.editing_stages)
 
-    await callback.message.edit_text(
+    await msg.edit_text(
         text, reply_markup=stages_manage_keyboard(stages, goal.id)
     )
     await callback.answer()
@@ -178,10 +181,11 @@ async def on_edit_stage_name(
     callback: CallbackQuery, callback_data: StageManageCallback, state: FSMContext
 ) -> None:
     """Начать редактирование названия этапа."""
+    msg = get_callback_message(callback)
     stage = await Stage.get_or_none(id=callback_data.stage_id)
 
     if not stage:
-        await callback.message.edit_text("Этап не найден.")
+        await msg.edit_text("Этап не найден.")
         return
 
     await state.update_data(
@@ -189,7 +193,7 @@ async def on_edit_stage_name(
     )
     await state.set_state(GoalManageStates.editing_stage_name)
 
-    await callback.message.edit_text(
+    await msg.edit_text(
         f"Текущее название: *{stage.title}*\n\n"
         "Введи новое название этапа (или /cancel для отмены):"
     )
@@ -214,15 +218,24 @@ async def process_stage_name(message: Message, state: FSMContext) -> None:
         return
 
     old_title = stage.title
-    stage.title = message.text
-    await stage.save()
+    if message.text:
+        stage.title = message.text
+        await stage.save()
 
     await message.answer(
         f"✅ Название изменено:\nБыло: _{old_title}_\nСтало: *{stage.title}*",
     )
 
     # Возвращаемся к списку этапов
+    if not goal_id:
+        await message.answer("Цель не найдена.")
+        return
+    
     goal = await Goal.get_or_none(id=goal_id).prefetch_related("stages")
+    if not goal:
+        await message.answer("Цель не найдена.")
+        return
+    
     stages = await goal.stages.all().order_by("order")
 
     await state.set_state(GoalManageStates.editing_stages)
@@ -237,10 +250,11 @@ async def on_add_stage(
     callback: CallbackQuery, callback_data: StageManageCallback, state: FSMContext
 ) -> None:
     """Начать добавление нового этапа."""
+    msg = get_callback_message(callback)
     await state.update_data(current_goal_id=callback_data.goal_id)
     await state.set_state(GoalManageStates.adding_stage)
 
-    await callback.message.edit_text(
+    await msg.edit_text(
         "➕ *Новый этап*\n\nВведи название нового этапа (или /cancel для отмены):"
     )
     await callback.answer()
@@ -256,6 +270,10 @@ async def process_new_stage(message: Message, state: FSMContext) -> None:
 
     data = await state.get_data()
     goal_id = data.get("current_goal_id")
+    
+    if not goal_id:
+        await message.answer("Цель не найдена.")
+        return
 
     goal = await Goal.get_or_none(id=goal_id).prefetch_related("stages")
     if not goal:
@@ -281,6 +299,10 @@ async def process_new_stage(message: Message, state: FSMContext) -> None:
 
     # Обновляем список этапов (перезагружаем goal с prefetch)
     goal = await Goal.get_or_none(id=goal_id).prefetch_related("stages")
+    if not goal:
+        await message.answer("Цель не найдена.")
+        return
+    
     stages = await goal.stages.all().order_by("order")
     await state.set_state(GoalManageStates.editing_stages)
     await message.answer(
@@ -294,10 +316,11 @@ async def on_delete_stage(
     callback: CallbackQuery, callback_data: StageManageCallback, state: FSMContext
 ) -> None:
     """Подтверждение удаления этапа."""
+    msg = get_callback_message(callback)
     stage = await Stage.get_or_none(id=callback_data.stage_id)
 
     if not stage:
-        await callback.message.edit_text("Этап не найден.")
+        await msg.edit_text("Этап не найден.")
         return
 
     # Проверка: если это последний этап, предупреждаем
@@ -305,7 +328,7 @@ async def on_delete_stage(
     stages_count = await Stage.filter(goal=goal).count()
 
     if stages_count == 1:
-        await callback.message.edit_text(
+        await msg.edit_text(
             f"⚠️ *{stage.title}* — последний этап цели.\n\n"
             "Удалить его нельзя. Если хочешь удалить цель целиком, "
             "вернись назад и выбери 'Удалить цель'."
@@ -318,7 +341,7 @@ async def on_delete_stage(
     )
     await state.set_state(GoalManageStates.confirming_delete_stage)
 
-    await callback.message.edit_text(
+    await msg.edit_text(
         f"🗑 *Удалить этап?*\n\n"
         f"Этап: _{stage.title}_\n"
         f"Прогресс: {stage.progress}%\n\n"
@@ -336,26 +359,35 @@ async def confirm_delete_stage(
     callback: CallbackQuery, callback_data: GoalManageCallback, state: FSMContext
 ) -> None:
     """Выполнить удаление этапа."""
+    msg = get_callback_message(callback)
     data = await state.get_data()
     stage_id = data.get("current_stage_id")
     goal_id = data.get("current_goal_id")
+    
+    if not goal_id:
+        await msg.edit_text("Цель не найдена.")
+        return
 
     stage = await Stage.get_or_none(id=stage_id)
     if not stage:
-        await callback.message.edit_text("Этап не найден.")
+        await msg.edit_text("Этап не найден.")
         return
 
     title = stage.title
     await stage.delete()
 
-    await callback.message.edit_text(f"✅ Этап _{title}_ удалён.")
+    await msg.edit_text(f"✅ Этап _{title}_ удалён.")
 
     # Возвращаемся к списку этапов
     goal = await Goal.get_or_none(id=goal_id).prefetch_related("stages")
+    if not goal:
+        await callback.answer("Цель не найдена")
+        return
+    
     stages = await goal.stages.all().order_by("order")
 
     await state.set_state(GoalManageStates.editing_stages)
-    await callback.message.answer(
+    await msg.answer(
         f"Этапы цели _{goal.title}_:",
         reply_markup=stages_manage_keyboard(stages, goal_id),
     )
@@ -367,16 +399,17 @@ async def on_pause_goal(
     callback: CallbackQuery, callback_data: GoalManageCallback, state: FSMContext
 ) -> None:
     """Приостановить цель."""
+    msg = get_callback_message(callback)
     goal = await Goal.get_or_none(id=callback_data.goal_id)
 
     if not goal:
-        await callback.message.edit_text("Цель не найдена.")
+        await msg.edit_text("Цель не найдена.")
         return
 
     goal.status = "paused"
     await goal.save()
 
-    await callback.message.edit_text(
+    await msg.edit_text(
         f"⏸ Цель *{goal.title}* приостановлена.\n\n"
         "Можешь возобновить её в любое время через /goals."
     )
@@ -388,18 +421,18 @@ async def on_resume_goal(
     callback: CallbackQuery, callback_data: GoalManageCallback, state: FSMContext
 ) -> None:
     """Возобновить цель."""
+    msg = get_callback_message(callback)
     goal = await Goal.get_or_none(id=callback_data.goal_id)
 
     if not goal:
-        await callback.message.edit_text("Цель не найдена.")
+        await msg.edit_text("Цель не найдена.")
         return
 
     goal.status = "active"
     await goal.save()
 
-    await callback.message.edit_text(
+    await msg.edit_text(
         f"▶️ Цель *{goal.title}* возобновлена!\n\nЖми *Утро* — спланируем день.",
-        reply_markup=main_menu_keyboard(),
     )
     await callback.answer()
 
@@ -409,20 +442,20 @@ async def on_complete_goal(
     callback: CallbackQuery, callback_data: GoalManageCallback, state: FSMContext
 ) -> None:
     """Завершить цель."""
+    msg = get_callback_message(callback)
     goal = await Goal.get_or_none(id=callback_data.goal_id)
 
     if not goal:
-        await callback.message.edit_text("Цель не найдена.")
+        await msg.edit_text("Цель не найдена.")
         return
 
     goal.status = "completed"
     await goal.save()
 
-    await callback.message.edit_text(
+    await msg.edit_text(
         f"🎉 *Цель достигнута!*\n\n"
         f"_{goal.title}_\n\n"
         "Поздравляю! Создавай новую цель через /start.",
-        reply_markup=main_menu_keyboard(),
     )
     await callback.answer()
 
@@ -435,16 +468,17 @@ async def on_delete_goal_confirm(
     callback: CallbackQuery, callback_data: GoalManageCallback, state: FSMContext
 ) -> None:
     """Подтверждение удаления цели."""
+    msg = get_callback_message(callback)
     goal = await Goal.get_or_none(id=callback_data.goal_id)
 
     if not goal:
-        await callback.message.edit_text("Цель не найдена.")
+        await msg.edit_text("Цель не найдена.")
         return
 
     await state.update_data(current_goal_id=goal.id)
     await state.set_state(GoalManageStates.confirming_delete_goal)
 
-    await callback.message.edit_text(
+    await msg.edit_text(
         f"🗑 *Удалить цель?*\n\n"
         f"Цель: _{goal.title}_\n\n"
         "⚠️ Все этапы и шаги будут удалены.\n"
@@ -462,10 +496,11 @@ async def confirm_delete_goal(
     callback: CallbackQuery, callback_data: GoalManageCallback, state: FSMContext
 ) -> None:
     """Выполнить удаление цели."""
+    msg = get_callback_message(callback)
     goal = await Goal.get_or_none(id=callback_data.goal_id).prefetch_related("stages")
 
     if not goal:
-        await callback.message.edit_text("Цель не найдена.")
+        await msg.edit_text("Цель не найдена.")
         return
 
     title = goal.title
@@ -479,8 +514,7 @@ async def confirm_delete_goal(
     await goal.delete()
 
     await state.clear()
-    await callback.message.edit_text(
+    await msg.edit_text(
         f"✅ Цель _{title}_ и все её этапы удалены.\n\nСоздай новую цель через /start.",
-        reply_markup=main_menu_keyboard(),
     )
     await callback.answer()
