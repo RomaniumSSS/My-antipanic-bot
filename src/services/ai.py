@@ -14,8 +14,14 @@ from typing import Any
 
 from anthropic import (
     APIConnectionError as AnthropicAPIConnectionError,
+)
+from anthropic import (
     APIError as AnthropicAPIError,
+)
+from anthropic import (
     AsyncAnthropic,
+)
+from anthropic import (
     RateLimitError as AnthropicRateLimitError,
 )
 from openai import APIConnectionError, APIError, AsyncOpenAI, RateLimitError
@@ -159,15 +165,15 @@ class AIService:
     def __init__(self):
         """
         Инициализация AI клиента в зависимости от config.AI_PROVIDER.
-        
+
         Providers:
         - "anthropic" (default): Claude Sonnet 4.5
         - "openai": OpenAI GPT-4 (fallback)
-        
+
         AICODE-NOTE: Выбор провайдера через .env для быстрого rollback при проблемах.
         """
         self.provider = config.AI_PROVIDER.lower()
-        
+
         if self.provider == "anthropic":
             if not config.ANTHROPIC_KEY:
                 raise ValueError("ANTHROPIC_KEY required for AI_PROVIDER=anthropic")
@@ -206,9 +212,9 @@ class AIService:
     async def _make_request(self, messages: list[dict[str, Any]], **kwargs) -> str:
         """
         Внутренний метод для запроса к API с ретраями.
-        
+
         Поддерживает оба провайдера: Claude (Anthropic) и OpenAI.
-        
+
         AICODE-NOTE: Claude требует max_tokens, OpenAI - нет (опциональный).
         """
         start_time = time.time()
@@ -216,18 +222,18 @@ class AIService:
             if self.provider == "anthropic":
                 # Claude API: messages.create() требует max_tokens
                 max_tokens = kwargs.pop("max_tokens", 2048)
-                
+
                 # Anthropic использует другой формат messages
                 # system prompt передается отдельно
                 system_content = ""
                 user_messages = []
-                
+
                 for msg in messages:
                     if msg["role"] == "system":
                         system_content = msg["content"]
                     else:
                         user_messages.append(msg)
-                
+
                 response = await self.client.messages.create(
                     model=self.model,
                     max_tokens=max_tokens,
@@ -345,7 +351,7 @@ class AIService:
 
         Returns:
             Текст микро-удара
-            
+
         AICODE-NOTE: Legacy метод для обратной совместимости.
         Для новых use-cases используй get_microhit_variants().
         """
@@ -360,25 +366,25 @@ class AIService:
         ]
         response = await self.chat(messages, temperature=0.8, max_tokens=200)
         return response
-    
+
     async def get_microhit_variants(
         self, step_title: str, blocker_type: str, details: str = "", count: int = 3
     ) -> list[str]:
         """
         Получить НЕСКОЛЬКО вариантов микро-ударов за один вызов.
-        
+
         Оптимизация: вместо N параллельных вызовов get_microhit() делаем
         один запрос с просьбой сгенерировать N вариантов в JSON.
-        
+
         Args:
             step_title: Название шага, на котором застрял
             blocker_type: Тип блокера (fear, unclear, no_time, no_energy)
             details: Дополнительные детали от пользователя
             count: Количество вариантов (по умолчанию 3)
-            
+
         Returns:
             Список текстов микро-ударов (2-3 варианта)
-            
+
         AICODE-NOTE: Добавлено в plan 003 для оптимизации stuck flow.
         Используется в resolve_stuck_use_case для показа вариантов на выбор.
         """
@@ -404,13 +410,13 @@ class AIService:
   {{"variant": "moderate", "text": "Конкретное действие 3-5 мин"}},
   {{"variant": "alternative", "text": "Другой подход к задаче"}}
 ]"""
-        
+
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt},
         ]
         response = await self.chat(messages, temperature=0.8, max_tokens=500)
-        
+
         try:
             # Пытаемся извлечь JSON из ответа
             response_text = response.strip()
@@ -418,21 +424,23 @@ class AIService:
                 response_text = response_text.split("```")[1].strip()
                 if response_text.startswith("json"):
                     response_text = response_text[4:].strip()
-            
+
             variants = json.loads(response_text)
-            
+
             # Извлекаем только текст из вариантов
             if isinstance(variants, list) and len(variants) > 0:
                 return [v.get("text", str(v)) for v in variants]
-            
+
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse microhit variants JSON: {e}. Response: {response}")
-        
+            logger.error(
+                f"Failed to parse microhit variants JSON: {e}. Response: {response}"
+            )
+
         # Fallback: если JSON не распарсился, возвращаем дефолтные варианты
         fallback_variants = [
             f"Открой {step_title.lower()}. Не делай, просто открой. 30 секунд.",
             f"Таймер на 5 минут. Делай {step_title.lower()}. Хреново — норм. Остановишься когда таймер.",
-            f"Напиши одно предложение по задаче. Плохое — пофиг. Главное напиши. 2 минуты.",
+            "Напиши одно предложение по задаче. Плохое — пофиг. Главное напиши. 2 минуты.",
         ]
         return fallback_variants[:count]
 
