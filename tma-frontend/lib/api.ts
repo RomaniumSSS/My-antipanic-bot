@@ -92,6 +92,18 @@ export interface MicroHitResponse {
   estimated_minutes: number;
 }
 
+export interface CompleteStepResponse {
+  success: boolean;
+  xp_earned: number;
+  total_xp: number;
+  streak_updated: boolean;
+  new_streak: number;
+}
+
+export interface SkipStepResponse {
+  success: boolean;
+}
+
 // ============ API Error ============
 
 export class ApiError extends Error {
@@ -185,6 +197,27 @@ export async function generateMicroHit(stepId: number, blockerText?: string): Pr
     body: JSON.stringify({
       step_id: stepId,
       blocker_text: blockerText,
+    }),
+  });
+}
+
+/**
+ * Mark step as completed.
+ */
+export async function completeStep(stepId: number): Promise<CompleteStepResponse> {
+  return fetchAPI<CompleteStepResponse>(`/api/steps/${stepId}/complete`, {
+    method: 'POST',
+  });
+}
+
+/**
+ * Skip step with optional reason.
+ */
+export async function skipStep(stepId: number, reason?: string): Promise<SkipStepResponse> {
+  return fetchAPI<SkipStepResponse>(`/api/steps/${stepId}/skip`, {
+    method: 'POST',
+    body: JSON.stringify({
+      reason: reason || 'Не подошло',
     }),
   });
 }

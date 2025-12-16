@@ -9,6 +9,7 @@ import {
   GoalCardSkeleton,
   UserProfile,
   UserProfileSkeleton,
+  TodaySteps,
 } from '@/components';
 import { getMe, getStats, getGoals, type User, type Stats, type GoalsListResponse } from '@/lib/api';
 import { hapticFeedback } from '@/lib/telegram';
@@ -23,6 +24,16 @@ export default function HomePage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [goals, setGoals] = useState<GoalsListResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Function to reload stats after completing/skipping steps
+  const reloadStats = async () => {
+    try {
+      const statsData = await getStats();
+      setStats(statsData);
+    } catch (err) {
+      console.error('Failed to reload stats:', err);
+    }
+  };
 
   useEffect(() => {
     if (!isReady) return;
@@ -154,6 +165,13 @@ export default function HomePage() {
           <StatsCard stats={stats} />
         )}
       </section>
+
+      {/* Today's steps */}
+      {loadingState === 'ready' && (
+        <section>
+          <TodaySteps onStatsUpdate={reloadStats} />
+        </section>
+      )}
 
       {/* Goals list */}
       <section>
