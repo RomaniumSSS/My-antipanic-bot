@@ -198,10 +198,10 @@ class AssignMorningStepsUseCase:
         """
         # 1. Ensure active stage
         stage_result = await self.ensure_active_stage(goal)
-        if not stage_result.success:
+        if not stage_result.success or not stage_result.stage:
             return BodyStepResult(
                 success=False,
-                error_message=stage_result.error_message,
+                error_message=stage_result.error_message or "Не удалось получить этап",
             )
 
         stage = stage_result.stage
@@ -268,10 +268,10 @@ class AssignMorningStepsUseCase:
         """
         # 1. Ensure active stage
         stage_result = await self.ensure_active_stage(goal)
-        if not stage_result.success:
+        if not stage_result.success or not stage_result.stage:
             return TaskStepResult(
                 success=False,
-                error_message=stage_result.error_message,
+                error_message=stage_result.error_message or "Не удалось получить этап",
             )
 
         stage = stage_result.stage

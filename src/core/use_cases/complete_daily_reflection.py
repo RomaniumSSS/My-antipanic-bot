@@ -150,8 +150,8 @@ class CompleteDailyReflectionUseCase:
         # Format streak text
         streak_text = format_streak_text(new_streak)
 
-        # Get stats
-        progress = summary.progress
+        # Get stats (progress is guaranteed non-None when success=True)
+        progress = summary.progress or {"total": 0, "completed": 0, "xp_earned": 0}
         steps_text = summary.steps_text
 
         logger.info(

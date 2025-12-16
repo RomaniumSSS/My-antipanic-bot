@@ -18,7 +18,7 @@ from aiogram import F, Router
 from aiogram.dispatcher.event.bases import SkipHandler
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, InaccessibleMessage, Message
 
 from src.bot.callbacks.data import (
     BlockerCallback,
@@ -102,6 +102,8 @@ async def cmd_stuck(message: Message, state: FSMContext) -> None:
 async def blocker_unclear(callback: CallbackQuery, state: FSMContext) -> None:
     """Блокер "не знаю с чего начать" — запрашиваем детали."""
     await callback.answer()
+    if not callback.message or isinstance(callback.message, InaccessibleMessage):
+        return
 
     await state.update_data(blocker_type=BlockerType.unclear.value)
     await state.set_state(StuckStates.waiting_for_details)
@@ -211,7 +213,7 @@ async def generate_and_show_microhit_options(
             await message_or_callback_msg.answer(error_text)
         return
 
-    options = result.options
+    options = result.options or []
     blocker_key = (
         BlockerType(blocker_type)
         if blocker_type in [b.value for b in BlockerType]
@@ -263,6 +265,8 @@ async def microhit_option_selected(
     User clicked one of the option buttons → show that option with action buttons.
     """
     await callback.answer()
+    if not callback.message or isinstance(callback.message, InaccessibleMessage):
+        return
 
     index = callback_data.index
     blocker = callback_data.blocker
@@ -302,6 +306,8 @@ async def microhit_feedback(
 ) -> None:
     """Обработка реакции на микро-удар."""
     await callback.answer()
+    if not callback.message or isinstance(callback.message, InaccessibleMessage):
+        return
 
     action = callback_data.action
     step_id = callback_data.step_id or None  # 0 → None

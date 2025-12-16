@@ -71,7 +71,8 @@ class CompleteStepUseCase:
         await step_repo.mark_completed(step)
 
         # 6. Обновить прогресс этапа
-        await self._update_stage_progress(step.stage_id)
+        # AICODE-NOTE: stage_id создаётся Tortoise ORM динамически для ForeignKeyField
+        await self._update_stage_progress(step.stage_id)  # type: ignore[attr-defined]
 
         # 7. Обновить DailyLog (репозиторий)
         daily_log = await daily_log_repo.get_or_create_daily_log(user, today)

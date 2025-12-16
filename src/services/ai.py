@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_tone_level(
-    user: "User", daily_log: "DailyLog | None"
+    user: "User | None", daily_log: "DailyLog | None"
 ) -> str:
     """
     Определяет уровень жесткости тона на основе контекста пользователя.
@@ -217,7 +217,12 @@ QUIZ_DIAGNOSIS_FEWSHOT_MID_ASSISTANT = (
 
 
 class AIService:
-    def __init__(self):
+    # Type hints for dual-provider support
+    client: AsyncAnthropic | AsyncOpenAI
+    provider: str
+    model: str
+
+    def __init__(self) -> None:
         """
         Инициализация AI клиента в зависимости от config.AI_PROVIDER.
 
@@ -289,24 +294,30 @@ class AIService:
                     else:
                         user_messages.append(msg)
 
+                # AICODE-NOTE: isinstance check for mypy — runtime provider is "anthropic"
+                assert isinstance(self.client, AsyncAnthropic)
                 response = await self.client.messages.create(
                     model=self.model,
                     max_tokens=max_tokens,
                     system=system_content,
-                    messages=user_messages,
+                    messages=user_messages,  # type: ignore[arg-type]
                     **kwargs,
                 )
                 latency = time.time() - start_time
                 logger.info(f"Claude Request OK. Latency: {latency:.2f}s")
-                return response.content[0].text
+                # Extract text from first content block (TextBlock)
+                first_block = response.content[0]
+                return first_block.text if hasattr(first_block, "text") else str(first_block)
             else:
                 # OpenAI API: chat.completions.create()
-                response = await self.client.chat.completions.create(
-                    model=self.model, messages=messages, **kwargs
+                # AICODE-NOTE: isinstance check for mypy — runtime provider is "openai"
+                assert isinstance(self.client, AsyncOpenAI)
+                oai_response = await self.client.chat.completions.create(
+                    model=self.model, messages=messages, **kwargs  # type: ignore[arg-type]
                 )
                 latency = time.time() - start_time
                 logger.info(f"OpenAI Request OK. Latency: {latency:.2f}s")
-                return response.choices[0].message.content or ""
+                return oai_response.choices[0].message.content or ""
         except Exception as e:
             logger.error(f"AI Request failed ({self.provider}): {e}")
             raise
@@ -349,7 +360,8 @@ class AIService:
                 response = response.split("```")[1].strip()
                 if response.startswith("json"):
                     response = response[4:].strip()
-            return json.loads(response)
+            result: list[dict[str, Any]] = json.loads(response)
+            return result
         except json.JSONDecodeError:
             logger.error(f"Failed to parse decompose response: {response}")
             # Fallback: один этап на всё время
@@ -401,7 +413,8 @@ class AIService:
                 response = response.split("```")[1].strip()
                 if response.startswith("json"):
                     response = response[4:].strip()
-            return json.loads(response)
+            result: list[dict[str, Any]] = json.loads(response)
+            return result
         except json.JSONDecodeError:
             logger.error(f"Failed to parse steps response: {response}")
             # Fallback: один простой шаг

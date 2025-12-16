@@ -185,7 +185,8 @@ async def test_resolved_stuck_step_returns_to_regular_flow(
 
     # After Stage 2.3 refactor: state is NOT cleared until user selects an option
     assert await state.get_state() == StuckStates.waiting_for_blocker.state
-    assert any("Варианты микро-ударов" in item["text"] for item in msg.sent)
+    # Plan 004: UI text changed to emphasize autonomy
+    assert any("Выбери вариант" in item["text"] for item in msg.sent)
 
 
 @pytest.mark.asyncio

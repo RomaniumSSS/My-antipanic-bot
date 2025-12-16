@@ -41,7 +41,7 @@ class MicrohitOptionsResult:
     """Result of generating microhit options."""
 
     success: bool
-    options: list[MicrohitOption] = None
+    options: list[MicrohitOption] | None = None
     error_message: str = ""
 
 

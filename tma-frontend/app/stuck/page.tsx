@@ -344,7 +344,7 @@ export default function StuckPage() {
 
           <div className="card">
             <h2 className="text-lg font-semibold mb-3">
-              {selectedBlockerData?.emoji} Варианты микро-ударов:
+              🎯 Выбери вариант который тебе ближе:
             </h2>
             
             <div className="space-y-3">
@@ -367,7 +367,7 @@ export default function StuckPage() {
             </div>
 
             <div className="mt-4 text-xs hint-text">
-              💡 Выбери наиболее подходящий вариант — всего 2-5 минут!
+              💡 Выбирай любой — главное начать. Всего 2-5 минут.
             </div>
           </div>
 
