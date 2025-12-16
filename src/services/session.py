@@ -46,6 +46,10 @@ async def ensure_active_stage(goal: Goal) -> Stage | None:
     Return current active stage for a goal.
     If active is completed (>=100) mark it completed and activate next pending.
     """
+    # AICODE-NOTE: Минимум шагов для авто-завершения этапа
+    # Защита от завершения цели после 1-2 antipanic шагов
+    MIN_STEPS_FOR_AUTO_COMPLETE = 4
+
     active_stages = (
         await Stage.filter(goal=goal, status="active").order_by("-order", "-id").all()
     )
@@ -59,9 +63,12 @@ async def ensure_active_stage(goal: Goal) -> Stage | None:
         await Stage.filter(id__in=stale_ids).update(status="pending")
 
     if current and current.progress >= 100:
-        # Для онбординговых целей даём возможность добавлять ещё шаги,
-        # не завершая этап после первого же микрошага.
-        if goal.status != "onboarding":
+        # Проверяем количество шагов в этапе
+        total_steps = await Step.filter(stage=current).count()
+
+        # Для онбординговых целей или малого кол-ва шагов даём возможность
+        # добавлять ещё шаги, не завершая этап после первого же микрошага.
+        if goal.status != "onboarding" and total_steps >= MIN_STEPS_FOR_AUTO_COMPLETE:
             current.status = "completed"
             await current.save()
             current = None
@@ -92,7 +99,14 @@ async def ensure_active_stage(goal: Goal) -> Stage | None:
                 )
             else:
                 completed = await Stage.filter(goal=goal, status="completed").count()
-                if total and completed == total and goal.status != "onboarding":
+                # AICODE-NOTE: Проверяем общее кол-во шагов в цели перед завершением
+                total_goal_steps = await Step.filter(stage__goal=goal).count()
+                if (
+                    total
+                    and completed == total
+                    and goal.status != "onboarding"
+                    and total_goal_steps >= MIN_STEPS_FOR_AUTO_COMPLETE
+                ):
                     goal.status = "completed"
                     await goal.save()
     return current
@@ -171,8 +185,13 @@ async def _create_step(
 
 
 async def get_body_micro_action(user: User) -> str:
-    """Pick a short grounding/activation action."""
-    random.seed(user.telegram_id)
+    """Pick a short grounding/activation action.
+
+    AICODE-NOTE: Seed теперь включает дату, чтобы каждый день
+    пользователь получал разные body actions, а не одно и то же.
+    """
+    today_seed = f"{user.telegram_id}_{date.today().isoformat()}"
+    random.seed(today_seed)
     return random.choice(BODY_ACTIONS)
 
 

@@ -99,12 +99,21 @@ class AssignMorningStepsUseCase:
             for stage in stale_stages:
                 await goal_repo.update_stage_status(stage, "pending")
 
-        # Auto-complete stage at 100% progress (except onboarding)
+        # AICODE-NOTE: Не авто-завершаем stage если мало шагов
+        # Минимум 4 шага для авто-завершения (защита от завершения после 1 body_step)
+        MIN_STEPS_FOR_AUTO_COMPLETE = 4
+
+        # Auto-complete stage at 100% progress (except onboarding or few steps)
         if current and current.progress >= 100:
-            if goal.status != "onboarding":
+            # Проверяем количество шагов в этапе
+            from src.storage import step_repo
+            stage_steps = await step_repo.get_steps_by_stage(current.id)
+            total_steps = len(stage_steps)
+
+            if goal.status != "onboarding" and total_steps >= MIN_STEPS_FOR_AUTO_COMPLETE:
                 current = await goal_repo.update_stage_status(current, "completed")
                 current = None  # Need to find next stage
-            # Onboarding goals keep adding steps to same stage
+            # Onboarding goals or few steps — keep adding to same stage
 
         # Activate next pending stage if current is None
         if not current:
@@ -136,9 +145,16 @@ class AssignMorningStepsUseCase:
                     completed_count = sum(
                         1 for s in all_stages if s.status == "completed"
                     )
+                    # AICODE-NOTE: Проверяем общее кол-во шагов перед завершением цели
+                    total_goal_steps = 0
+                    for s in all_stages:
+                        stage_steps = await step_repo.get_steps_by_stage(s.id)
+                        total_goal_steps += len(stage_steps)
+
                     if (
                         completed_count == len(all_stages)
                         and goal.status != "onboarding"
+                        and total_goal_steps >= MIN_STEPS_FOR_AUTO_COMPLETE
                     ):
                         # Mark goal as completed
                         goal.status = "completed"
@@ -165,7 +181,8 @@ class AssignMorningStepsUseCase:
         """
         Pick a short grounding/activation action.
 
-        Uses user's telegram_id as random seed for consistency.
+        Uses user's telegram_id + date as seed so actions vary each day
+        but remain consistent within same day.
 
         Args:
             user: User instance
@@ -173,7 +190,9 @@ class AssignMorningStepsUseCase:
         Returns:
             Body action text
         """
-        random.seed(user.telegram_id)
+        # AICODE-NOTE: Добавлена дата в seed, чтобы каждый день body_action менялся
+        today_seed = f"{user.telegram_id}_{date.today().isoformat()}"
+        random.seed(today_seed)
         return random.choice(BODY_ACTIONS)
 
     async def create_body_step(

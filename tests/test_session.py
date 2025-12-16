@@ -25,12 +25,13 @@ def test_support_message_variants() -> None:
 
 @pytest.mark.asyncio
 async def test_get_body_micro_action_is_stable(db: None) -> None:
-    """Body action should be deterministic per user to feel consistent."""
+    """Body action should be deterministic per user+day (same day = same action)."""
     user = await User.create(telegram_id=101)
 
     first = await session_service.get_body_micro_action(user)
     second = await session_service.get_body_micro_action(user)
 
+    # Same user, same day → same action
     assert first == second
     assert first in session_service.BODY_ACTIONS
 
@@ -160,14 +161,38 @@ async def test_ensure_active_stage_when_multiple_stages_picks_latest_and_logs_wa
     assert "multiple active stages" in caplog.text
 
 
+async def _create_completed_steps(stage: Stage, count: int = 4) -> list[Step]:
+    """Helper to create completed steps for a stage (needed for auto-complete logic)."""
+    steps = []
+    for i in range(count):
+        step = await Step.create(
+            stage=stage,
+            title=f"Step {i+1}",
+            difficulty="easy",
+            estimated_minutes=5,
+            xp_reward=10,
+            scheduled_date=date.today(),
+            status="completed",
+        )
+        steps.append(step)
+    return steps
+
+
 @pytest.mark.asyncio
 async def test_ensure_active_stage_advances_and_completes(db: None) -> None:
-    """Finished stage should complete and next pending becomes active, goal closes when done."""
+    """Finished stage should complete and next pending becomes active, goal closes when done.
+
+    AICODE-NOTE: Updated for MIN_STEPS_FOR_AUTO_COMPLETE=4 protection.
+    Stages need at least 4 completed steps to auto-complete.
+    """
     user = await User.create(telegram_id=201)
     goal, first = await _goal_with_stage(user, status="active", progress=100, order=1)
     _, second = await _goal_with_stage(
         user, goal=goal, status="pending", progress=0, order=2
     )
+
+    # Create enough completed steps in first stage to trigger auto-complete
+    await _create_completed_steps(first, count=4)
 
     current = await session_service.ensure_active_stage(goal)
     assert current is not None
@@ -176,6 +201,8 @@ async def test_ensure_active_stage_advances_and_completes(db: None) -> None:
     await first.refresh_from_db()
     assert first.status == "completed"
 
+    # Now prepare second stage with enough steps and 100% progress
+    await _create_completed_steps(second, count=4)
     await second.refresh_from_db()
     second.progress = 100
     second.status = "active"  # ensure we don't overwrite active state with stale data
@@ -188,6 +215,31 @@ async def test_ensure_active_stage_advances_and_completes(db: None) -> None:
     assert current_after is None
     assert second.status == "completed"
     assert goal.status == "completed"
+
+
+@pytest.mark.asyncio
+async def test_ensure_active_stage_does_not_complete_with_few_steps(db: None) -> None:
+    """Stage should NOT auto-complete if it has fewer than MIN_STEPS_FOR_AUTO_COMPLETE steps.
+
+    This protects against goal completion after just 1-2 antipanic micro-steps.
+    """
+    user = await User.create(telegram_id=202)
+    goal, stage = await _goal_with_stage(user, status="active", progress=100, order=1)
+
+    # Create only 2 steps (below MIN_STEPS_FOR_AUTO_COMPLETE=4)
+    await _create_completed_steps(stage, count=2)
+
+    current = await session_service.ensure_active_stage(goal)
+
+    # Stage should remain active despite 100% progress
+    assert current is not None
+    assert current.id == stage.id
+    await stage.refresh_from_db()
+    assert stage.status == "active"  # NOT completed!
+
+    # Goal should also remain active
+    await goal.refresh_from_db()
+    assert goal.status == "active"
 
 
 @pytest.mark.asyncio

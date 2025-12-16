@@ -1,13 +1,14 @@
 """
 Onboarding handlers — создание цели и этапов.
 
-Flow (упрощённый для TMA миграции):
+Flow:
 1. Пользователь вводит цель (из start.py → OnboardingStates.waiting_for_goal)
 2. Пользователь вводит дедлайн
-3. Создание Goal + 1 дефолтный Stage "Начало" в БД (без AI)
+3. AI генерирует 2-4 этапа цели
+4. Создание Goal + Stages в БД
 
-AICODE-NOTE: Упрощено для Этапа 1.2 TMA миграции.
-AI генерация этапов перенесена в BACKLOG.md для будущей реализации.
+AICODE-NOTE: AI генерация этапов ВОЗВРАЩЕНА (была отключена для TMA миграции).
+При ошибке AI — fallback на 1 дефолтный этап "Начало".
 """
 
 import logging
@@ -20,6 +21,7 @@ from aiogram.types import Message
 from src.bot.keyboards import main_menu_keyboard
 from src.bot.states import OnboardingStates
 from src.database.models import Goal, Stage, User
+from src.services.ai import ai_service
 from src.services.reminders import setup_user_reminders
 
 logger = logging.getLogger(__name__)
@@ -92,10 +94,9 @@ async def process_goal(message: Message, state: FSMContext) -> None:
 @router.message(OnboardingStates.waiting_for_deadline)
 async def process_deadline(message: Message, state: FSMContext) -> None:
     """
-    Получение дедлайна и создание цели.
+    Получение дедлайна и создание цели с AI генерацией этапов.
 
-    AICODE-NOTE: Упрощено - теперь создаём Goal + 1 Stage "Начало" сразу,
-    без AI генерации этапов и подтверждения.
+    AICODE-NOTE: AI генерация ВОЗВРАЩЕНА. При ошибке AI — fallback на 1 этап.
     """
     deadline = parse_date(message.text or "")
 
@@ -120,7 +121,23 @@ async def process_deadline(message: Message, state: FSMContext) -> None:
         await message.answer("Пользователь не найден. Напиши /start")
         return
 
-    # AICODE-NOTE: Создаём цель без AI этапов
+    # Показываем сообщение о генерации
+    wait_msg = await message.answer("⏳ Разбиваю цель на этапы...")
+
+    # Генерируем этапы через AI
+    try:
+        stages_data = await ai_service.decompose_goal(goal_text, deadline)
+    except Exception as e:
+        logger.error(f"AI decompose_goal failed: {e}")
+        stages_data = []
+
+    # Fallback: если AI не вернул этапы — создаём 1 дефолтный
+    if not stages_data:
+        stages_data = [
+            {"title": "Начало", "days": (deadline - date.today()).days}
+        ]
+
+    # Создаём цель
     goal = await Goal.create(
         user=user,
         title=goal_text,
@@ -129,32 +146,65 @@ async def process_deadline(message: Message, state: FSMContext) -> None:
         status="active",
     )
 
-    # AICODE-NOTE: Создаём 1 дефолтный этап "Начало" на весь срок
-    await Stage.create(
-        goal=goal,
-        title="Начало",
-        order=1,
-        start_date=date.today(),
-        end_date=deadline,
-        status="active",
-    )
+    # Создаём этапы
+    total_days = (deadline - date.today()).days
+    current_start = date.today()
+    stages_text = ""
+
+    for i, stage_data in enumerate(stages_data, 1):
+        stage_title = stage_data.get("title", f"Этап {i}")
+        stage_days = stage_data.get("days", total_days // len(stages_data))
+
+        # Рассчитываем даты этапа
+        stage_end = current_start + timedelta(days=stage_days)
+        if stage_end > deadline:
+            stage_end = deadline
+
+        # Первый этап active, остальные pending
+        stage_status = "active" if i == 1 else "pending"
+
+        await Stage.create(
+            goal=goal,
+            title=stage_title,
+            order=i,
+            start_date=current_start,
+            end_date=stage_end,
+            status=stage_status,
+            progress=0,
+        )
+
+        # Формируем текст для показа
+        icon = "🔵" if i == 1 else "⚪"
+        stages_text += f"{icon} {i}. {stage_title}\n"
+
+        current_start = stage_end + timedelta(days=1)
 
     # Настраиваем напоминания
     await setup_user_reminders(user)
 
     await state.clear()
 
+    # Удаляем сообщение "Разбиваю..."
+    try:
+        await wait_msg.delete()
+    except Exception:
+        pass
+
     await message.answer(
         f"✅ *Цель создана!*\n\n"
         f"🎯 {goal_text}\n"
         f"📅 До {deadline.strftime('%d.%m.%Y')}\n\n"
+        f"*Этапы:*\n{stages_text}\n"
+        "Редактировать этапы: /goals\n"
         "Жми *Утро* — спланируем первый день.",
         reply_markup=main_menu_keyboard(),
     )
 
-    logger.info(f"Goal created for user {user.telegram_id}: {goal_text}")
+    logger.info(
+        f"Goal created for user {user.telegram_id}: {goal_text} "
+        f"with {len(stages_data)} stages"
+    )
 
 
-# AICODE-NOTE: Удалены handler'ы для OnboardingStates.confirming_stages
-# (confirm_stages, edit_stages, cancel_onboarding) после упрощения онбординга.
-# Теперь цель создаётся сразу после ввода дедлайна без подтверждения.
+# AICODE-NOTE: AI генерация этапов ВОЗВРАЩЕНА.
+# Handler'ы confirm_stages и edit_stages убраны — редактирование через /goals.
