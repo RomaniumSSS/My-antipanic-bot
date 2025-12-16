@@ -36,7 +36,8 @@ from src.bot.keyboards import (
 from src.bot.states import StuckStates
 from src.core.domain.stuck_rules import get_blocker_emoji
 from src.core.use_cases.resolve_stuck import resolve_stuck_use_case
-from src.database.models import Goal, Step, User
+from src.database.models import DailyLog, Goal, Step, User
+from src.storage import daily_log_repo
 
 logger = logging.getLogger(__name__)
 
@@ -125,9 +126,14 @@ async def blocker_other(
     blocker_type = callback_data.type
     await state.update_data(blocker_type=blocker_type.value)
 
+    # Get user for adaptive tone (plan 004)
+    user = None
+    if callback.from_user:
+        user = await User.get_or_none(telegram_id=callback.from_user.id)
+
     # Generate multiple microhit options (can edit since it's bot message)
     await generate_and_show_microhit_options(
-        callback.message, state, details="", can_edit=True
+        callback.message, state, details="", can_edit=True, user=user
     )
 
 
@@ -138,22 +144,41 @@ async def process_details(message: Message, state: FSMContext) -> None:
     if details == "-":
         details = ""
 
-    await generate_and_show_microhit_options(message, state, details)
+    # Get user for adaptive tone (plan 004)
+    user = None
+    if message.from_user:
+        user = await User.get_or_none(telegram_id=message.from_user.id)
+
+    await generate_and_show_microhit_options(message, state, details, user=user)
 
 
 async def generate_and_show_microhit_options(
-    message_or_callback_msg, state: FSMContext, details: str, *, can_edit: bool = False
+    message_or_callback_msg,
+    state: FSMContext,
+    details: str,
+    *,
+    can_edit: bool = False,
+    user: User | None = None,
 ) -> None:
     """
     Генерация и показ НЕСКОЛЬКИХ вариантов микро-ударов (Stage 2.3).
 
     Key improvement: instead of showing one microhit and waiting for "more" request,
     we generate 2-3 options upfront for user to choose from.
+
+    Plan 004: передаём user/daily_log для адаптивного тона.
     """
     data = await state.get_data()
     step_title = data.get("stuck_step_title", "задача")
     blocker_type = data.get("blocker_type", "unclear")
     step_id = data.get("stuck_step_id")
+
+    # Get user and daily_log for adaptive tone (plan 004)
+    daily_log: DailyLog | None = None
+    if user:
+        from datetime import date
+
+        daily_log = await daily_log_repo.get_or_create_daily_log(user, date.today())
 
     # Show loading indicator
     if can_edit:
@@ -165,11 +190,13 @@ async def generate_and_show_microhit_options(
             "🤔 Думаю над вариантами микро-ударов..."
         )
 
-    # Use use-case to generate multiple options
+    # Use use-case to generate multiple options with adaptive tone (plan 004)
     result = await resolve_stuck_use_case.generate_microhit_options(
         step_title=step_title,
         blocker_type=blocker_type,
         details=details,
+        user=user,
+        daily_log=daily_log,
     )
 
     if not result.success:
@@ -192,15 +219,15 @@ async def generate_and_show_microhit_options(
     )
     blocker_emoji = get_blocker_emoji(blocker_type)
 
-    # Build message with all options listed
+    # Build message with all options listed (plan 004: подчеркиваем автономию выбора)
     options_text = "\n\n".join(
-        [f"{i}. {opt.text}" for i, opt in enumerate(options, start=1)]
+        [f"{i}️⃣ {opt.text}" for i, opt in enumerate(options, start=1)]
     )
 
     result_text = (
-        f"{blocker_emoji} *Варианты микро-ударов:*\n\n"
+        f"🎯 *Выбери вариант который тебе ближе:*\n\n"
         f"{options_text}\n\n"
-        f"💡 Выбери наиболее подходящий вариант кнопками ниже!"
+        f"💡 Выбирай любой — главное начать. Всего 2-5 минут."
     )
 
     # Save options to state for later reference
@@ -342,7 +369,7 @@ async def microhit_feedback(
                 step_title = context_result.step_title
                 step_id = context_result.step_id
 
-        # Generate new set of options
+        # Generate new set of options (plan 004: pass user for adaptive tone)
         await state.update_data(
             stuck_step_title=step_title,
             stuck_step_id=step_id,
@@ -350,7 +377,7 @@ async def microhit_feedback(
         )
 
         await generate_and_show_microhit_options(
-            callback.message, state, details="", can_edit=True
+            callback.message, state, details="", can_edit=True, user=user
         )
 
 
@@ -451,4 +478,9 @@ async def _process_microhit_feedback_details(
         blocker_type=blocker.value,
     )
 
-    await generate_and_show_microhit_options(message, state, details=details)
+    # Get user for adaptive tone (plan 004)
+    user = None
+    if message.from_user:
+        user = await User.get_or_none(telegram_id=message.from_user.id)
+
+    await generate_and_show_microhit_options(message, state, details=details, user=user)

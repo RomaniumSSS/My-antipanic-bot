@@ -283,7 +283,10 @@ class AssignMorningStepsUseCase:
         )
         difficulty = select_step_difficulty(energy_hint)
 
-        # 3. Generate step using AI
+        # 3. Get daily_log for adaptive tone (plan 004)
+        daily_log = await daily_log_repo.get_or_create_daily_log(user, date.today())
+
+        # 4. Generate step using AI with adaptive tone
         try:
             if max_minutes <= 5:
                 # Micro step (2-5 min)
@@ -291,6 +294,8 @@ class AssignMorningStepsUseCase:
                     stage_title=stage.title,
                     energy=energy_hint,
                     mood="включиться через микро",
+                    user=user,
+                    daily_log=daily_log,
                 )
                 minutes = max(2, min(max_minutes, 5))
                 xp_reward = calculate_xp_for_step("easy", minutes)
@@ -301,6 +306,8 @@ class AssignMorningStepsUseCase:
                     stage_title=stage.title,
                     energy=energy_hint,
                     mood="готов к короткому спринту",
+                    user=user,
+                    daily_log=daily_log,
                 )
                 # Pick first step that fits duration
                 picked = next(
@@ -326,7 +333,7 @@ class AssignMorningStepsUseCase:
                 error_message=f"Не удалось сгенерировать шаг: {e}",
             )
 
-        # 4. Create step
+        # 5. Create step
         step = await step_repo.create_step(
             stage_id=stage.id,
             title=step_title,
@@ -337,8 +344,7 @@ class AssignMorningStepsUseCase:
             status="pending",
         )
 
-        # 5. Log to DailyLog
-        daily_log = await daily_log_repo.get_or_create_daily_log(user, date.today())
+        # 6. Log to DailyLog (daily_log already fetched above for adaptive tone)
         await daily_log_repo.log_step_assignment(
             daily_log=daily_log,
             step_id=step.id,

@@ -113,6 +113,8 @@ class ResolveStuckUseCase:
         blocker_type: BlockerType | str,
         details: str = "",
         count: int | None = None,
+        user: User | None = None,
+        daily_log: DailyLog | None = None,
     ) -> MicrohitOptionsResult:
         """
         Generate multiple microhit options for user to choose from.
@@ -130,6 +132,8 @@ class ResolveStuckUseCase:
             blocker_type: Type of blocker (fear/unclear/no_time/no_energy)
             details: Additional context from user (optional)
             count: Number of options to generate (default: auto-calculate)
+            user: User instance for adaptive tone (plan 004)
+            daily_log: DailyLog instance for adaptive tone (plan 004)
 
         Returns:
             MicrohitOptionsResult with list of options or error
@@ -150,11 +154,14 @@ class ResolveStuckUseCase:
         try:
             # AICODE-NOTE: Optimized in plan 003 - single API call instead of N parallel calls
             # Use get_microhit_variants() for efficient variant generation
+            # Plan 004: pass user/daily_log for adaptive tone
             microhits = await ai_service.get_microhit_variants(
                 step_title=step_title,
                 blocker_type=blocker_desc,
                 details=details,
                 count=count,
+                user=user,
+                daily_log=daily_log,
             )
 
             # Create options from results

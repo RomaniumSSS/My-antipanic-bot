@@ -35,7 +35,62 @@ from tenacity import (
 
 from src.config import config
 
+# AICODE-NOTE: Используем TYPE_CHECKING для избежания циклического импорта
+# (models -> ai -> models). Реальные типы передаются как параметры в runtime.
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.database.models import DailyLog, User
+
 logger = logging.getLogger(__name__)
+
+
+def get_tone_level(
+    user: "User", daily_log: "DailyLog | None"
+) -> str:
+    """
+    Определяет уровень жесткости тона на основе контекста пользователя.
+
+    Логика адаптивного тона (plan 004 — Self-Determination Theory):
+    - "maximum": первый шаг дня или после провала streak → нужен пинок
+    - "high": обычный день (1-2 шага сделано) → стандартная жесткость
+    - "moderate": уже в потоке (3+ шага сегодня) → меньше давления
+    - "soft": устойчивая привычка (streak 7+ дней) → поддержка без жесткости
+
+    Args:
+        user: User instance (для streak_days)
+        daily_log: DailyLog instance или None (для completed_step_ids)
+
+    Returns:
+        Уровень тона: "maximum" | "high" | "moderate" | "soft"
+    """
+    # Fallback на "high" при отсутствии данных
+    if user is None:
+        return "high"
+
+    # После провала streak или первый день — максимум жесткости
+    if user.streak_days == 0:
+        return "maximum"
+
+    # Устойчивая привычка (7+ дней подряд) — поддержка без давления
+    if user.streak_days >= 7:
+        return "soft"
+
+    # Уже в потоке сегодня (3+ шага выполнено) — moderate тон
+    if daily_log and len(daily_log.completed_step_ids) >= 3:
+        return "moderate"
+
+    # Обычный день — стандартная высокая жесткость
+    return "high"
+
+
+# Инструкции по тону для промптов
+TONE_INSTRUCTIONS: dict[str, str] = {
+    "maximum": "Максимальная жесткость. Императив без вариантов: 'Делай. Прямо сейчас. Без раздумий.'",
+    "high": "Жестко, но с дыханием: 'Делай это. 2 минуты. Начинаешь сейчас.'",
+    "moderate": "Нейтрально-прямо: 'Следующий шаг. 5 минут.'",
+    "soft": "Поддержка без жесткости: 'Продолжай. Следующий шаг:'",
+}
 
 
 # === ПРОМПТЫ ===
@@ -301,21 +356,41 @@ class AIService:
             return [{"title": goal_text, "days": (deadline - date.today()).days}]
 
     async def generate_steps(
-        self, stage_title: str, energy: int, mood: str
+        self,
+        stage_title: str,
+        energy: int,
+        mood: str,
+        user: "User | None" = None,
+        daily_log: "DailyLog | None" = None,
     ) -> list[dict[str, Any]]:
         """
         Сгенерировать шаги на день исходя из этапа и состояния.
 
+        Args:
+            stage_title: Название текущего этапа
+            energy: Уровень энергии (1-10)
+            mood: Описание состояния пользователя
+            user: User instance для адаптивного тона (опционально)
+            daily_log: DailyLog instance для адаптивного тона (опционально)
+
         Returns:
             List[{"title": str, "difficulty": str, "minutes": int}]
         """
+        # Адаптивный тон (plan 004)
+        tone_level = get_tone_level(user, daily_log) if user else "high"
+        tone_instruction = TONE_INSTRUCTIONS[tone_level]
+
+        system_prompt = f"""{SYSTEM_PROMPT}
+
+Тон этого ответа: {tone_instruction}"""
+
         prompt = STEPS_PROMPT.format(
             stage_title=stage_title,
             energy=energy,
             mood=mood or "не указано",
         )
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt},
         ]
         response = await self.chat(messages, temperature=0.7)
@@ -339,7 +414,12 @@ class AIService:
             ]
 
     async def get_microhit(
-        self, step_title: str, blocker_type: str, details: str = ""
+        self,
+        step_title: str,
+        blocker_type: str,
+        details: str = "",
+        user: "User | None" = None,
+        daily_log: "DailyLog | None" = None,
     ) -> str:
         """
         Получить микро-удар для преодоления застревания.
@@ -348,6 +428,8 @@ class AIService:
             step_title: Название шага, на котором застрял
             blocker_type: Тип блокера (fear, unclear, no_time, no_energy)
             details: Дополнительные детали от пользователя
+            user: User instance для адаптивного тона (опционально)
+            daily_log: DailyLog instance для адаптивного тона (опционально)
 
         Returns:
             Текст микро-удара
@@ -355,20 +437,34 @@ class AIService:
         AICODE-NOTE: Legacy метод для обратной совместимости.
         Для новых use-cases используй get_microhit_variants().
         """
+        # Адаптивный тон (plan 004)
+        tone_level = get_tone_level(user, daily_log) if user else "high"
+        tone_instruction = TONE_INSTRUCTIONS[tone_level]
+
+        system_prompt = f"""{SYSTEM_PROMPT}
+
+Тон этого ответа: {tone_instruction}"""
+
         prompt = MICROHIT_PROMPT.format(
             step_title=step_title,
             blocker_type=blocker_type,
             details=details or "не указаны",
         )
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt},
         ]
         response = await self.chat(messages, temperature=0.8, max_tokens=200)
         return response
 
     async def get_microhit_variants(
-        self, step_title: str, blocker_type: str, details: str = "", count: int = 3
+        self,
+        step_title: str,
+        blocker_type: str,
+        details: str = "",
+        count: int = 3,
+        user: "User | None" = None,
+        daily_log: "DailyLog | None" = None,
     ) -> list[str]:
         """
         Получить НЕСКОЛЬКО вариантов микро-ударов за один вызов.
@@ -381,6 +477,8 @@ class AIService:
             blocker_type: Тип блокера (fear, unclear, no_time, no_energy)
             details: Дополнительные детали от пользователя
             count: Количество вариантов (по умолчанию 3)
+            user: User instance для адаптивного тона (опционально)
+            daily_log: DailyLog instance для адаптивного тона (опционально)
 
         Returns:
             Список текстов микро-ударов (2-3 варианта)
@@ -388,7 +486,15 @@ class AIService:
         AICODE-NOTE: Добавлено в plan 003 для оптимизации stuck flow.
         Используется в resolve_stuck_use_case для показа вариантов на выбор.
         """
-        prompt = f"""Пользователь застрял. Дай {count} РАЗНЫХ варианта микро-ударов. Жёстко.
+        # Адаптивный тон (plan 004)
+        tone_level = get_tone_level(user, daily_log) if user else "high"
+        tone_instruction = TONE_INSTRUCTIONS[tone_level]
+
+        system_prompt = f"""{SYSTEM_PROMPT}
+
+Тон этого ответа: {tone_instruction}"""
+
+        prompt = f"""Пользователь застрял. Дай {count} РАЗНЫХ варианта микро-ударов.
 
 Шаг: {step_title}
 Блокер: {blocker_type}
@@ -412,7 +518,7 @@ class AIService:
 ]"""
 
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt},
         ]
         response = await self.chat(messages, temperature=0.8, max_tokens=500)
@@ -445,7 +551,12 @@ class AIService:
         return fallback_variants[:count]
 
     async def generate_micro_step(
-        self, stage_title: str, energy: int, mood: str
+        self,
+        stage_title: str,
+        energy: int,
+        mood: str,
+        user: "User | None" = None,
+        daily_log: "DailyLog | None" = None,
     ) -> str:
         """
         Сгенерировать супер-микро-шаг на 2 минуты для случаев низкой энергии.
@@ -454,17 +565,27 @@ class AIService:
             stage_title: Название текущего этапа
             energy: Уровень энергии (1-10)
             mood: Описание состояния пользователя
+            user: User instance для адаптивного тона (опционально)
+            daily_log: DailyLog instance для адаптивного тона (опционально)
 
         Returns:
             Текст микро-действия
         """
+        # Адаптивный тон (plan 004)
+        tone_level = get_tone_level(user, daily_log) if user else "high"
+        tone_instruction = TONE_INSTRUCTIONS[tone_level]
+
+        system_prompt = f"""{SYSTEM_PROMPT}
+
+Тон этого ответа: {tone_instruction}"""
+
         prompt = MICRO_STEP_PROMPT.format(
             stage_title=stage_title,
             energy=energy,
             mood=mood or "не указано",
         )
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt},
         ]
         response = await self.chat(messages, temperature=0.8, max_tokens=150)
