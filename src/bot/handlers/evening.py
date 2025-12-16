@@ -102,11 +102,12 @@ async def finish_day(message: Message, user: User, state: FSMContext) -> None:
     await state.clear()
 
     # Show completion message with stats
+    # AICODE-NOTE: Позитивный feedback после дня (CLAUDE_RULES.md § 2)
     await message.answer(
         f"🌙 *День завершён!*\n\n"
         f"{result.steps_text}\n"
         f"📊 Выполнено: {result.completed_steps}/{result.total_steps}\n"
-        f"⭐ XP за день: +{result.xp_earned}\n"
+        f"⭐ +{result.xp_earned} XP за день. Идёшь к цели.\n"
         f"⭐ Всего XP: {result.total_xp}{result.streak_text}\n\n"
         "До завтра! Напишу утром 🌅",
         reply_markup=main_menu_keyboard(),

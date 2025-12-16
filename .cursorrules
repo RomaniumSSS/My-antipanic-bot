@@ -3,7 +3,7 @@
 ## 🚨 Read First
 Before ANY action:
 1. `docs/AGENTS.md` — initialization protocol
-2. Relevant: `AIOGRAM_RULES.md` / `TORTOISE_RULES.md` / `OPENAI_RULES.md`
+2. Relevant: `AIOGRAM_RULES.md` / `TORTOISE_RULES.md` / `CLAUDE_RULES.md`
 
 Start response: "✅ Verified: [docs read]"
 
@@ -22,11 +22,14 @@ Start response: "✅ Verified: [docs read]"
 - ❌ NEVER forget `await` (returns coroutine)
 - ❌ NEVER skip `prefetch_related` (causes N+1)
 
-### OpenAI
-- ✅ `AsyncOpenAI()` only
+### Claude (Anthropic)
+- ✅ `AsyncAnthropic()` only (NEVER sync client!)
+- ✅ `max_tokens` MANDATORY parameter (unlike OpenAI)
+- ✅ Drill sergeant tone in prompts (no "попробуй", "может быть")
 - ❌ NEVER sync client in async
+- ❌ NEVER forget `max_tokens` (required by Claude API)
 
-Check `docs/AGENTS.md` § 6-7 for details.
+Check `docs/AGENTS.md` § 6-7 and `docs/CLAUDE_RULES.md` for details.
 
 ---
 
@@ -45,6 +48,31 @@ src/storage/         # Repositories
 - ✅ `async/await` for ALL I/O
 - ✅ Type hints on all functions
 - ✅ AICODE-NOTE/TODO/QUESTION for non-obvious code
+
+---
+
+## Documentation Policy
+
+### In Responses
+- ❌ NEVER write full usage guides after code changes
+- ✅ Brief summary (1–2 sentences max) IF critical
+- ✅ Inline docstrings/comments in code itself
+- ❌ NEVER create multi-paragraph "How to use" sections in chat
+
+### In Files
+- ✅ Update existing `docs/` files if architecture changes
+- ✅ Map changes to relevant doc:
+  - API changes → `docs/tech.md`
+  - Domain rules → `docs/product.md`
+  - Bot flows → `docs/AGENTS.md` § relevant
+  - Deployment → `docs/RAILWAY_DEPLOY.md` / `docs/CRON_SETUP.md`
+- ❌ NEVER create new standalone doc per feature
+- ❌ NEVER write 50+ line usage examples in docs
+
+### Context Economy
+- Keep explanations compact (use bullet points, not paragraphs)
+- Assume the human can read code; don't re-explain obvious flow
+- Reference existing docs instead of repeating content
 
 ---
 

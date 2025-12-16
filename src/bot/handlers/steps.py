@@ -126,16 +126,17 @@ async def step_done(
 
                 await callback.message.edit_text(
                     f"🎉 *Все шаги отмечены!*\n\n{steps_text}\n\n"
-                    f"+{result.xp_earned} XP (всего: {result.total_xp})\n\n"
-                    "Как прошёл день?",
+                    f"Сделал всё. +{result.xp_earned} XP (всего: {result.total_xp}). "
+                    f"Зачёт. Как прошёл день?",
                     reply_markup=rating_keyboard(),
                 )
             else:
                 # Обычный flow
                 await callback.message.edit_text(
                     f"🎉 *Все шаги выполнены!*\n\n{steps_text}\n\n"
-                    f"+{result.xp_earned} XP (всего: {result.total_xp})\n\n"
-                    "Отличная работа! Вечером напиши /evening для итогов."
+                    f"Готово. +{result.xp_earned} XP (всего: {result.total_xp}). "
+                    f"Streak: {user.streak_days} дней — продолжай. "
+                    f"Вечером напиши /evening для итогов."
                 )
         else:
             # Есть ещё невыполненные шаги
@@ -151,23 +152,27 @@ async def step_done(
                     f"🌙 *Итоги дня*\n\n"
                     f"{steps_text}\n"
                     f"📊 Выполнено: {len(completed_steps)}/{len(steps)}\n"
-                    f"⭐ XP за день: +{xp_earned}\n\n"
+                    f"⭐ +{xp_earned} XP за день. "
+                    f"Двигаешься к цели.\n\n"
                     "Как прошёл день?",
                     reply_markup=rating_keyboard(),
                 )
             else:
                 # Показываем обновлённый список с кнопками только для pending шагов
+                # AICODE-NOTE: Позитивный feedback после completion (CLAUDE_RULES.md § 2)
                 if pending_steps:
                     pending_ids = [s.id for s in pending_steps]
                     await callback.message.edit_text(
-                        f"*Шаги на сегодня:*\n{steps_text}\n\n+{result.xp_earned} XP",
+                        f"*Шаги на сегодня:*\n{steps_text}\n\n"
+                        f"Сделал. +{result.xp_earned} XP. Двигаешься к цели.",
                         reply_markup=steps_list_keyboard(pending_ids),
                     )
                 else:
                     # Все pending отмечены, но не из evening flow
                     await callback.message.edit_text(
                         f"*Шаги на сегодня:*\n{steps_text}\n\n"
-                        f"+{result.xp_earned} XP (всего: {result.total_xp})"
+                        f"Сделал. +{result.xp_earned} XP (всего: {result.total_xp}). "
+                        f"Streak: {user.streak_days} дней. Продолжай."
                     )
 
     if is_antipanic_body or is_antipanic_micro:

@@ -8,9 +8,9 @@ AICODE-NOTE: This use-case orchestrates stuck resolution flow:
 4. (Optional) Create step for selected microhit
 
 Extracted from handlers/stuck.py for TMA migration Stage 2.3.
+Optimized in plan 003 to use get_microhit_variants() for single API call.
 """
 
-import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import date
@@ -148,28 +148,20 @@ class ResolveStuckUseCase:
         )
 
         try:
-            # Generate multiple microhits concurrently
-            # NOTE: We could optimize by having AI generate multiple options
-            # in one call, but for now we use parallel independent calls
-            tasks = [
-                ai_service.get_microhit(
-                    step_title=step_title,
-                    blocker_type=blocker_desc,
-                    details=details,
-                )
-                for _ in range(count)
+            # AICODE-NOTE: Optimized in plan 003 - single API call instead of N parallel calls
+            # Use get_microhit_variants() for efficient variant generation
+            microhits = await ai_service.get_microhit_variants(
+                step_title=step_title,
+                blocker_type=blocker_desc,
+                details=details,
+                count=count,
+            )
+
+            # Create options from results
+            options = [
+                MicrohitOption(text=text, index=i)
+                for i, text in enumerate(microhits, start=1)
             ]
-
-            microhits = await asyncio.gather(*tasks, return_exceptions=True)
-
-            # Filter out exceptions and create options
-            options = []
-            for i, result in enumerate(microhits, start=1):
-                if isinstance(result, Exception):
-                    logger.error(f"Failed to generate microhit option {i}: {result}")
-                    continue
-
-                options.append(MicrohitOption(text=result, index=i))
 
             if not options:
                 return MicrohitOptionsResult(

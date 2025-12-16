@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-Antipanic Bot is an async Telegram bot built on aiogram 3.x that helps users overcome procrastination paralysis through goal decomposition, daily micro-steps, and anti-stuck mechanisms. The bot uses OpenAI GPT-4o for intelligent task generation and APScheduler for reminders.
+Antipanic Bot is an async Telegram bot built on aiogram 3.x that helps users overcome procrastination paralysis through goal decomposition, daily micro-steps, and anti-stuck mechanisms. The bot uses Claude Sonnet 4.5 (Anthropic) for intelligent task generation with drill sergeant tone and APScheduler for reminders.
 
 ## Quick Start Commands
 
@@ -56,7 +56,9 @@ ruff check --fix .
 
 Required `.env` variables:
 - `BOT_TOKEN` - Telegram Bot API token
-- `OPENAI_KEY` - OpenAI API key
+- `ANTHROPIC_KEY` - Anthropic API key for Claude
+- `AI_PROVIDER` - "anthropic" (default) or "openai" (fallback)
+- `OPENAI_KEY` - OpenAI API key (optional, for fallback)
 - `ALLOWED_USER_IDS` - Optional whitelist (comma-separated IDs or JSON array)
 
 ## Critical Architecture Patterns
@@ -130,17 +132,21 @@ await log_antipanic_action(
 ### 4. AI Service Integration (`src/services/ai.py`)
 
 **Critical Patterns:**
-- Always use `AsyncOpenAI` client (never sync)
-- All prompts use structured messages with system/user roles
+- Always use `AsyncAnthropic` client (never sync!) - migrated from OpenAI (plan 003)
+- Claude API requires `max_tokens` parameter (MANDATORY, unlike OpenAI)
+- System prompt passed as separate parameter, not in messages
+- All prompts use drill sergeant tone (no "попробуй", "может быть")
 - Retry logic via tenacity for transient errors
 - Short timeouts (60s) with fallback messages
 - Energy-aware step generation (low energy = easy steps only)
+- Fallback to OpenAI via `AI_PROVIDER=openai` in .env
 
 **Key Methods:**
 - `generate_steps()` - Daily task list based on energy/mood
 - `generate_micro_step()` - Single 2-5 min action
-- `generate_microhit()` - Anti-stuck quick action
-- `calculate_diagnosis()` - Quiz analysis with CoT
+- `get_microhit()` - Legacy: single anti-stuck action
+- `get_microhit_variants()` - NEW: 2-3 variant options for user choice (plan 003)
+- `generate_quiz_diagnosis()` - Quiz analysis with drill sergeant tone
 
 ### 5. CallbackData Architecture
 

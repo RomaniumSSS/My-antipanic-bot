@@ -1,13 +1,13 @@
 # Antipanic Bot — Техническая документация
 
 ## Архитектура
-Асинхронный Telegram-бот на aiogram 3.x. Бизнес-флоу реализованы в роутерах (FSM), данные хранятся через Tortoise ORM + SQLite, напоминания — APScheduler, генерация шагов и микро-ударов — OpenAI GPT-4o.
+Асинхронный Telegram-бот на aiogram 3.x. Бизнес-флоу реализованы в роутерах (FSM), данные хранятся через Tortoise ORM + SQLite, напоминания — APScheduler, генерация шагов и микро-ударов — Claude Sonnet 4.5 (Anthropic) с жесткой drill sergeant тональностью.
 
 ## Стек
 - Python 3.11+  
 - aiogram 3.x  
 - Tortoise ORM + SQLite  
-- OpenAI API (GPT-4o)  
+- Claude API (Anthropic Sonnet 4.5) — primary, fallback на OpenAI  
 - APScheduler (напоминания)
 
 ## Структура проекта
@@ -32,7 +32,7 @@ src/
 │   ├── config.py        # Tortoise config
 │   └── models.py        # User, Goal, Stage, Step, DailyLog
 └── services/
-    ├── ai.py            # OpenAI wrapper
+    ├── ai.py            # Claude (Anthropic) wrapper с drill sergeant промптами
     └── scheduler.py     # APScheduler wrapper
 ```
 
@@ -53,7 +53,8 @@ src/
 
 ## Интеграции
 - Telegram Bot API через aiogram.  
-- OpenAI GPT-4o через `services/ai.py`.  
+- Claude Sonnet 4.5 (Anthropic) через `services/ai.py` с drill sergeant тоном.  
+- Fallback на OpenAI через `AI_PROVIDER=openai` в .env для быстрого rollback.  
 - APScheduler — планировщик напоминаний (локально).
 - FastAPI — REST API для Telegram Mini App (TMA).
 
@@ -73,7 +74,7 @@ REST API для фронтенда Telegram Mini App (см. `src/interfaces/api/
 **Аутентификация**: Header `Authorization: tma <initData>` — валидация через HMAC-SHA256.
 
 ## Конфигурация и запуск
-- Переменные окружения: `BOT_TOKEN`, `OPENAI_KEY`.  
+- Переменные окружения: `BOT_TOKEN`, `ANTHROPIC_KEY`, `AI_PROVIDER` (optional: "anthropic" или "openai").  
 - Шаги:
 ```bash
 cd antipanic-bot

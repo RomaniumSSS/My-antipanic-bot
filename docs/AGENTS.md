@@ -10,7 +10,7 @@
    - `tech.md` — архитектура, стек
    - `AIOGRAM_RULES.md` — **ОБЯЗАТЕЛЬНО** при работе с ботом
    - `TORTOISE_RULES.md` — **ОБЯЗАТЕЛЬНО** при работе с БД
-   - `OPENAI_RULES.md` — при работе с AI сервисом
+   - `CLAUDE_RULES.md` — при работе с AI сервисом (Claude Anthropic)
 
 > Почему это важно? Вы не можете эффективно работать над проектом, не понимая его архитектуру, бизнес-логику и текущий статус, описанные в документации. Не галлюцинируйте — изучите документацию.
 
@@ -40,7 +40,7 @@
 - `AICODE-QUESTION:` блокер/вопрос для уточнения.
 
 ## 6. Технические правила (Vibe-Coding Style)
-1. Стек: Python 3.11+, aiogram 3.x, Tortoise ORM, SQLite, OpenAI API.
+1. Стек: Python 3.11+, aiogram 3.x, Tortoise ORM, SQLite, Claude API (Anthropic).
 2. Асинхронность: весь I/O (БД, Telegram, внешние API) — `async/await`.
 3. Структура: соблюдай дерево из `docs/tech.md`; не плодить файлы в корне, если им место в `handlers/`, `services/` и т.д.
 4. Безопасность: токены только в `.env`; не хардкодить секреты.
@@ -63,13 +63,15 @@
 - **await** — перед ВСЕМИ запросами к БД.
 - **Типизация** — `ForeignKeyRelation`, `ReverseRelation` для type hints.
 
-### 6.3 OpenAI API
-**Читай `docs/OPENAI_RULES.md` при работе с AI.**
+### 6.3 Claude API (Anthropic)
+**Читай `docs/CLAUDE_RULES.md` при работе с AI.**
 
 Ключевые правила:
-- **AsyncOpenAI** — только async клиент.
+- **AsyncAnthropic** — только async клиент. NEVER sync!
+- **max_tokens** — обязательный параметр для Claude (в отличие от OpenAI).
 - **Retry** — tenacity для transient errors.
-- **Промпты** — выноси в константы, структурируй.
+- **Промпты** — drill sergeant тон (без "попробуй", "может быть"), выноси в константы.
+- **Fallback** — через `AI_PROVIDER=openai` в .env для быстрого rollback.
 
 ## 7. Самопроверка перед завершением
 Перед "Готово" проверь:

@@ -1,6 +1,9 @@
 """
-AI Service — обёртка над OpenAI API.
+AI Service — обёртка над Claude API (Anthropic).
 Используется для генерации шагов, анализа состояния, разбивки целей.
+
+AICODE-NOTE: Мигрировано с OpenAI на Claude Sonnet 4.5 (plan 003).
+Поддерживается fallback на OpenAI через config.AI_PROVIDER.
 """
 
 import json
@@ -9,6 +12,12 @@ import time
 from datetime import date
 from typing import Any
 
+from anthropic import (
+    APIConnectionError as AnthropicAPIConnectionError,
+    APIError as AnthropicAPIError,
+    AsyncAnthropic,
+    RateLimitError as AnthropicRateLimitError,
+)
 from openai import APIConnectionError, APIError, AsyncOpenAI, RateLimitError
 from tenacity import (
     before_sleep_log,
@@ -25,14 +34,15 @@ logger = logging.getLogger(__name__)
 
 # === ПРОМПТЫ ===
 
-SYSTEM_PROMPT = """Ты — Antipanic Bot. Твоя задача — заставить пользователя сдвинуться с места.
+SYSTEM_PROMPT = """Ты drill sergeant для действий, не психолог.
 
 ПРАВИЛА:
-- Никаких "попробуй", "может быть", "если хочешь" — только прямые указания
-- "Делаешь это. Прямо сейчас. X минут. Всё."
-- Шаги конкретные, измеримые, без воды
-- Низкая энергия? Плевать. Даём действие на 2 минуты, но даём
-- Тон: жёсткий drill sergeant. Не мотивационная речь, а приказ
+- Никакой мотивационной воды ("ты сможешь", "верь в себя") - ЗАПРЕЩЕНО
+- Никаких "попробуй", "может быть", "возможно" - ТОЛЬКО императив
+- Только команды: "Делай", "Открой", "Напиши", "Ставь таймер"
+- Разрешена легкая грубость (не оскорбления!) - "Плевать на настроение, делай"
+- Шаги конкретные, измеримые, без абстракций
+- Низкая энергия? Норм. Делаешь меньше, но делаешь. Прямо сейчас
 - Отвечай на русском языке"""
 
 DECOMPOSE_PROMPT = """Разбей цель на 2-4 этапа. Без воды.
@@ -59,9 +69,9 @@ STEPS_PROMPT = """Дай 1-3 шага на сегодня. Сейчас.
 Состояние: {mood}
 
 ПРАВИЛА:
-- Энергия 1-3? Один шаг, 5-10 мин. Не ной, делай
-- Энергия 4-6? 1-2 шага, 15-30 мин. Никаких отмазок
-- Энергия 7-10? 2-3 шага, можно посложнее. Время работать
+- Энергия 1-3? Плевать. Делай одно действие на 5 мин. Сейчас
+- Энергия 4-6? 1-2 шага, 15-30 мин. Без оправданий
+- Энергия 7-10? 2-3 шага, можешь больше. Время действовать
 
 Формат JSON (БЕЗ markdown, БЕЗ ```):
 [
@@ -78,12 +88,12 @@ MICROHIT_PROMPT = """Пользователь застрял. Дай микро-
 Дай ОДНО конкретное действие на 2-5 минут. Прямо сейчас. Максимум 2 предложения.
 
 По типу блокера:
-- fear (страшно)? Забей. Делай первые 2 минуты, потом видно будет
-- unclear (не знаю с чего)? Вот первый шаг. Делаешь. Думать потом
-- no_time (нет времени)? Есть 2 минуты. Хватит лечить. Делаешь
-- no_energy (нет сил)? Норм. Действие на минимум. Но делаешь
+- fear (страшно)? Пиши. Хреново — норм. Главное пиши. 5 минут
+- unclear (не знаю с чего)? Открой файл. Первый шаг. Делаешь. Без раздумий
+- no_time (нет времени)? Есть 2 минуты. Хватит отмазок. Делай
+- no_energy (нет сил)? Энергии нет? Норм. Делай меньше, но делай. Прямо сейчас. 2 минуты
 
-БЕЗ сочувствия. БЕЗ "попробуй". Только действие."""
+БЕЗ сочувствия. БЕЗ "попробуй". БЕЗ "может быть". Только действие."""
 
 MICRO_STEP_PROMPT = """Энергия на нуле ({energy}/10), состояние: "{mood}".
 Этап: {stage_title}
@@ -96,7 +106,7 @@ MICRO_STEP_PROMPT = """Энергия на нуле ({energy}/10), состоя�
 - Конкретное действие, не абстракция
 - 1-2 предложения. БЕЗ эмодзи. БЕЗ дружелюбности
 
-Низкая энергия — не причина не делать. Причина делать меньше."""
+Энергии нет? Норм. Делай меньше, но делай. Прямо сейчас. 2 минуты."""
 
 QUIZ_DIAGNOSIS_SYSTEM_PROMPT = """Ты — Antipanic Bot. Скажи пользователю правду: в чём его главный затык и что будет, если не менять.
 
@@ -147,31 +157,97 @@ QUIZ_DIAGNOSIS_FEWSHOT_MID_ASSISTANT = (
 
 class AIService:
     def __init__(self):
-        self.client = AsyncOpenAI(
-            api_key=config.OPENAI_KEY.get_secret_value(), timeout=60.0
-        )
-        self.model = config.OPENAI_MODEL
+        """
+        Инициализация AI клиента в зависимости от config.AI_PROVIDER.
+        
+        Providers:
+        - "anthropic" (default): Claude Sonnet 4.5
+        - "openai": OpenAI GPT-4 (fallback)
+        
+        AICODE-NOTE: Выбор провайдера через .env для быстрого rollback при проблемах.
+        """
+        self.provider = config.AI_PROVIDER.lower()
+        
+        if self.provider == "anthropic":
+            if not config.ANTHROPIC_KEY:
+                raise ValueError("ANTHROPIC_KEY required for AI_PROVIDER=anthropic")
+            self.client = AsyncAnthropic(
+                api_key=config.ANTHROPIC_KEY.get_secret_value(),
+                timeout=60.0,
+            )
+            self.model = config.ANTHROPIC_MODEL
+        else:
+            # Fallback to OpenAI
+            if not config.OPENAI_KEY:
+                raise ValueError("OPENAI_KEY required for AI_PROVIDER=openai")
+            self.client = AsyncOpenAI(
+                api_key=config.OPENAI_KEY.get_secret_value(),
+                timeout=60.0,
+            )
+            self.model = config.OPENAI_MODEL
+            self.provider = "openai"
 
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
         retry=retry_if_exception_type(
-            (APIError, APIConnectionError, RateLimitError, ConnectionError)
+            (
+                APIError,
+                APIConnectionError,
+                RateLimitError,
+                AnthropicAPIError,
+                AnthropicAPIConnectionError,
+                AnthropicRateLimitError,
+                ConnectionError,
+            )
         ),
         before_sleep=before_sleep_log(logger, logging.WARNING),
     )
     async def _make_request(self, messages: list[dict[str, Any]], **kwargs) -> str:
-        """Внутренний метод для запроса к API с ретраями."""
+        """
+        Внутренний метод для запроса к API с ретраями.
+        
+        Поддерживает оба провайдера: Claude (Anthropic) и OpenAI.
+        
+        AICODE-NOTE: Claude требует max_tokens, OpenAI - нет (опциональный).
+        """
         start_time = time.time()
         try:
-            response = await self.client.chat.completions.create(
-                model=self.model, messages=messages, **kwargs
-            )
-            latency = time.time() - start_time
-            logger.info(f"AI Request OK. Latency: {latency:.2f}s")
-            return response.choices[0].message.content or ""
+            if self.provider == "anthropic":
+                # Claude API: messages.create() требует max_tokens
+                max_tokens = kwargs.pop("max_tokens", 2048)
+                
+                # Anthropic использует другой формат messages
+                # system prompt передается отдельно
+                system_content = ""
+                user_messages = []
+                
+                for msg in messages:
+                    if msg["role"] == "system":
+                        system_content = msg["content"]
+                    else:
+                        user_messages.append(msg)
+                
+                response = await self.client.messages.create(
+                    model=self.model,
+                    max_tokens=max_tokens,
+                    system=system_content,
+                    messages=user_messages,
+                    **kwargs,
+                )
+                latency = time.time() - start_time
+                logger.info(f"Claude Request OK. Latency: {latency:.2f}s")
+                return response.content[0].text
+            else:
+                # OpenAI API: chat.completions.create()
+                response = await self.client.chat.completions.create(
+                    model=self.model, messages=messages, **kwargs
+                )
+                latency = time.time() - start_time
+                logger.info(f"OpenAI Request OK. Latency: {latency:.2f}s")
+                return response.choices[0].message.content or ""
         except Exception as e:
-            logger.error(f"AI Request failed: {e}")
+            logger.error(f"AI Request failed ({self.provider}): {e}")
             raise
 
     async def chat(self, messages: list[dict[str, Any]], **kwargs) -> str:
@@ -269,6 +345,9 @@ class AIService:
 
         Returns:
             Текст микро-удара
+            
+        AICODE-NOTE: Legacy метод для обратной совместимости.
+        Для новых use-cases используй get_microhit_variants().
         """
         prompt = MICROHIT_PROMPT.format(
             step_title=step_title,
@@ -281,6 +360,81 @@ class AIService:
         ]
         response = await self.chat(messages, temperature=0.8, max_tokens=200)
         return response
+    
+    async def get_microhit_variants(
+        self, step_title: str, blocker_type: str, details: str = "", count: int = 3
+    ) -> list[str]:
+        """
+        Получить НЕСКОЛЬКО вариантов микро-ударов за один вызов.
+        
+        Оптимизация: вместо N параллельных вызовов get_microhit() делаем
+        один запрос с просьбой сгенерировать N вариантов в JSON.
+        
+        Args:
+            step_title: Название шага, на котором застрял
+            blocker_type: Тип блокера (fear, unclear, no_time, no_energy)
+            details: Дополнительные детали от пользователя
+            count: Количество вариантов (по умолчанию 3)
+            
+        Returns:
+            Список текстов микро-ударов (2-3 варианта)
+            
+        AICODE-NOTE: Добавлено в plan 003 для оптимизации stuck flow.
+        Используется в resolve_stuck_use_case для показа вариантов на выбор.
+        """
+        prompt = f"""Пользователь застрял. Дай {count} РАЗНЫХ варианта микро-ударов. Жёстко.
+
+Шаг: {step_title}
+Блокер: {blocker_type}
+Детали: {details or "не указаны"}
+
+Дай {count} РАЗНЫХ подхода к разблокировке на 2-5 минут каждый:
+1. Минимальный вариант (самое простое действие, 1-2 минуты)
+2. Умеренный вариант (чуть больше усилий, 3-5 минут)
+3. Альтернативный подход (другой угол атаки на задачу)
+
+ВАЖНО:
+- Каждый вариант = РАЗНЫЙ подход, не просто разная формулировка
+- БЕЗ сочувствия, БЕЗ "попробуй", только команды
+- Каждый вариант 1-2 предложения максимум
+
+Формат JSON (БЕЗ markdown, БЕЗ ```):
+[
+  {{"variant": "minimal", "text": "Конкретное действие 1-2 мин"}},
+  {{"variant": "moderate", "text": "Конкретное действие 3-5 мин"}},
+  {{"variant": "alternative", "text": "Другой подход к задаче"}}
+]"""
+        
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ]
+        response = await self.chat(messages, temperature=0.8, max_tokens=500)
+        
+        try:
+            # Пытаемся извлечь JSON из ответа
+            response_text = response.strip()
+            if response_text.startswith("```"):
+                response_text = response_text.split("```")[1].strip()
+                if response_text.startswith("json"):
+                    response_text = response_text[4:].strip()
+            
+            variants = json.loads(response_text)
+            
+            # Извлекаем только текст из вариантов
+            if isinstance(variants, list) and len(variants) > 0:
+                return [v.get("text", str(v)) for v in variants]
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse microhit variants JSON: {e}. Response: {response}")
+        
+        # Fallback: если JSON не распарсился, возвращаем дефолтные варианты
+        fallback_variants = [
+            f"Открой {step_title.lower()}. Не делай, просто открой. 30 секунд.",
+            f"Таймер на 5 минут. Делай {step_title.lower()}. Хреново — норм. Остановишься когда таймер.",
+            f"Напиши одно предложение по задаче. Плохое — пофиг. Главное напиши. 2 минуты.",
+        ]
+        return fallback_variants[:count]
 
     async def generate_micro_step(
         self, stage_title: str, energy: int, mood: str
