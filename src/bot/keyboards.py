@@ -5,6 +5,8 @@
 НЕ используй raw строки для callback_data!
 """
 
+from typing import TYPE_CHECKING
+
 from aiogram.types import InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
@@ -36,6 +38,10 @@ from src.bot.callbacks.data import (
     StepCallback,
     TensionCallback,
 )
+
+if TYPE_CHECKING:
+    from src.core.use_cases.resolve_stuck import MicrohitOption
+    from src.database.models import Goal, Stage
 
 
 def energy_keyboard() -> InlineKeyboardMarkup:
@@ -165,7 +171,7 @@ def microhit_feedback_keyboard(
 
 
 def microhit_options_keyboard(
-    options: list, blocker: BlockerType, step_id: int | None
+    options: "list[MicrohitOption]", blocker: BlockerType, step_id: int | None
 ) -> InlineKeyboardMarkup:
     """
     Клавиатура с несколькими вариантами микро-ударов на выбор.
@@ -237,7 +243,7 @@ def main_menu_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
-def goal_select_keyboard(goals: list) -> InlineKeyboardMarkup:
+def goal_select_keyboard(goals: "list[Goal]") -> InlineKeyboardMarkup:
     """Выбор цели/темы для утреннего анти-паралич потока."""
     builder = InlineKeyboardBuilder()
     for goal in goals:
@@ -365,7 +371,7 @@ def goal_manage_keyboard(goal_id: int, is_active: bool = True) -> InlineKeyboard
     return builder.as_markup()
 
 
-def stages_manage_keyboard(stages: list, goal_id: int) -> InlineKeyboardMarkup:
+def stages_manage_keyboard(stages: "list[Stage]", goal_id: int) -> InlineKeyboardMarkup:
     """Клавиатура для управления этапами."""
     builder = InlineKeyboardBuilder()
 

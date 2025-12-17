@@ -123,6 +123,7 @@ async def blocker_other(
     callback: CallbackQuery, callback_data: BlockerCallback, state: FSMContext
 ) -> None:
     """Обработка других типов блокеров — сразу к вариантам микро-ударов."""
+    msg = get_callback_message(callback)
     await callback.answer()
 
     blocker_type = callback_data.type
@@ -135,7 +136,7 @@ async def blocker_other(
 
     # Generate multiple microhit options (can edit since it's bot message)
     await generate_and_show_microhit_options(
-        callback.message, state, details="", can_edit=True, user=user
+        msg, state, details="", can_edit=True, user=user
     )
 
 
@@ -155,7 +156,7 @@ async def process_details(message: Message, state: FSMContext) -> None:
 
 
 async def generate_and_show_microhit_options(
-    message_or_callback_msg,
+    message_or_callback_msg: Message,
     state: FSMContext,
     details: str,
     *,

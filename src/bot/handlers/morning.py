@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
-async def _ask_tension(target: Message | CallbackQuery, state: FSMContext, goal: Goal):
+async def _ask_tension(target: Message | CallbackQuery, state: FSMContext, goal: Goal) -> None:
     await state.set_state(AntipanicSession.rating_tension_before)
     text = (
         f"Фокус: *{escape_markdown(goal.title)}*\n\n"
