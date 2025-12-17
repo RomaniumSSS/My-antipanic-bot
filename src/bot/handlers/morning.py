@@ -109,6 +109,18 @@ async def cmd_morning(message: Message, state: FSMContext) -> None:
         await message.answer("Сначала напиши /start чтобы создать цель.")
         return
 
+    # AICODE-NOTE: Bug fix (17.12.2025) - Prevent calling Утро after day is completed
+    # Check if user already completed today (has rating)
+    from src.database.models import DailyLog
+    today_log = await DailyLog.get_or_none(user=user, date=date.today())
+    if today_log and today_log.day_rating:
+        await message.answer(
+            "🌙 Ты уже завершил день и оценил его!\n\n"
+            "Отдыхай. Жду тебя завтра утром 🌅",
+            reply_markup=main_menu_keyboard(),
+        )
+        return
+
     stored = await state.get_data()
     onboarding_sprint = stored.get("onboarding_sprint")
     await state.clear()

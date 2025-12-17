@@ -24,6 +24,7 @@ from aiogram.types import CallbackQuery, Message
 from src.bot.callbacks.data import (
     PaywallAction,
     PaywallCallback,
+    RatingCallback,
     StepAction,
     StepCallback,
 )
@@ -457,4 +458,50 @@ async def step_stuck(
     await msg.edit_text(
         f"🆘 Застрял на: *{escape_markdown(step.title)}*\n\nЧто мешает?",
         reply_markup=blocker_keyboard(),
+    )
+
+
+@router.callback_query(EveningStates.marking_done, RatingCallback.filter())
+async def handle_day_rating(
+    callback: CallbackQuery, callback_data: RatingCallback, state: FSMContext
+) -> None:
+    """
+    Обработка оценки дня (1-5 emoji).
+
+    AICODE-NOTE: Bug fix (17.12.2025) - добавлен недостающий handler для RatingCallback.
+    Без этого handler'а emoji кнопки не работали после вечернего итога.
+    """
+    msg = get_callback_message(callback)
+    await callback.answer()
+
+    if not callback.from_user:
+        logger.warning("handle_day_rating: callback.from_user is None")
+        return
+
+    user = await User.get_or_none(telegram_id=callback.from_user.id)
+    if not user:
+        logger.warning(f"handle_day_rating: user not found for {callback.from_user.id}")
+        await state.clear()
+        await msg.edit_text("Сначала напиши /start")
+        return
+
+    rating = callback_data.value
+
+    # Save rating to DailyLog
+    today = date.today()
+    daily_log = await DailyLog.get_or_none(user=user, date=today)
+    if daily_log:
+        daily_log.day_rating = str(rating)
+        await daily_log.save()
+
+    await state.clear()
+
+    # Emoji для разных оценок
+    rating_emojis = {1: "😫", 2: "😕", 3: "😐", 4: "🙂", 5: "😊"}
+    emoji = rating_emojis.get(rating, "👍")
+
+    await msg.edit_text(
+        f"{emoji} Спасибо за оценку!\n\n"
+        "День завершён. До завтра! 🌅",
+        reply_markup=main_menu_keyboard(),
     )
