@@ -196,10 +196,15 @@ class AssignMorningStepsUseCase:
         Returns:
             Body action text
         """
-        # AICODE-NOTE: Добавлена дата в seed, чтобы каждый день body_action менялся
+        # AICODE-NOTE: Используем helper с anti-repeat логикой (17.12.2025)
+        from src.services.session import choose_body_action_no_repeat
+        
         today_seed = f"{user.telegram_id}_{date.today().isoformat()}"
         random.seed(today_seed)
-        return random.choice(BODY_ACTIONS)
+        
+        # Get last action from FSM if available (future enhancement)
+        # For now, just use the helper without last_action
+        return choose_body_action_no_repeat()
 
     async def create_body_step(
         self, user: User, goal: Goal, tension: int | None

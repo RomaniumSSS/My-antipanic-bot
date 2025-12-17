@@ -76,20 +76,33 @@ class CompleteDailyReflectionUseCase:
         # Get daily log
         daily_log = await DailyLog.get_or_none(user=user, date=today)
 
-        if not daily_log or not daily_log.assigned_step_ids:
+        if not daily_log:
             return DailySummaryResult(
                 success=False,
                 error_message="Сегодня ещё не было старта дня. "
                 "Сначала сделай короткий утренний чек-ин через кнопку «Утро».",
             )
 
-        # Get steps
-        steps = await Step.filter(id__in=daily_log.assigned_step_ids)
+        # Get steps - filter ONLY by today's date to avoid showing old steps
+        # AICODE-NOTE: Critical fix (17.12.2025) - only show steps scheduled for today
+        if daily_log.assigned_step_ids:
+            steps = await Step.filter(
+                id__in=daily_log.assigned_step_ids, 
+                scheduled_date=today
+            )
+        else:
+            steps = []
 
+        # Allow completing day even without steps (e.g., rest day)
         if not steps:
             return DailySummaryResult(
-                success=False,
-                error_message="Не найдены шаги дня.",
+                success=True,
+                daily_log=daily_log,
+                steps=[],
+                progress={"total": 0, "completed": 0, "skipped": 0, "pending": 0, "xp_earned": 0},
+                steps_text="_Нет шагов за сегодня_",
+                has_pending=False,
+                pending_step_ids=None,
             )
 
         # Calculate progress

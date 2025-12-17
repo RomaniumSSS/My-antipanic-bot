@@ -190,15 +190,44 @@ async def _create_step(
     return step
 
 
-async def get_body_micro_action(user: User) -> str:
+def choose_body_action_no_repeat(last_action: str | None = None) -> str:
+    """
+    Choose a body action, avoiding repetition of the last one.
+    
+    Args:
+        last_action: Previously chosen action to avoid
+        
+    Returns:
+        Random body action (different from last_action if possible)
+    
+    AICODE-NOTE: Anti-repeat logic (UX fix 17.12.2025)
+    """
+    if not last_action or len(BODY_ACTIONS) <= 1:
+        return random.choice(BODY_ACTIONS)
+    
+    # Filter out the last action
+    available = [action for action in BODY_ACTIONS if action != last_action]
+    
+    if not available:
+        # Fallback if somehow all filtered out
+        return random.choice(BODY_ACTIONS)
+    
+    return random.choice(available)
+
+
+async def get_body_micro_action(user: User, last_action: str | None = None) -> str:
     """Pick a short grounding/activation action.
 
     AICODE-NOTE: Seed теперь включает дату, чтобы каждый день
     пользователь получал разные body actions, а не одно и то же.
+    
+    Args:
+        user: User instance
+        last_action: Previously chosen action to avoid repetition
     """
     today_seed = f"{user.telegram_id}_{date.today().isoformat()}"
     random.seed(today_seed)
-    return random.choice(BODY_ACTIONS)
+    return choose_body_action_no_repeat(last_action)
 
 
 async def create_body_step(

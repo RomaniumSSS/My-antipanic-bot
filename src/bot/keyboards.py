@@ -83,7 +83,7 @@ def blocker_keyboard() -> InlineKeyboardMarkup:
         callback_data=BlockerCallback(type=BlockerType.fear),
     )
     builder.button(
-        text="🤷 Не знаю с чего",
+        text="🤷 Не знаю",
         callback_data=BlockerCallback(type=BlockerType.unclear),
     )
     builder.button(
