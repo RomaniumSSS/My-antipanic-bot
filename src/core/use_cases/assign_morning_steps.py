@@ -198,10 +198,10 @@ class AssignMorningStepsUseCase:
         """
         # AICODE-NOTE: Используем helper с anti-repeat логикой (17.12.2025)
         from src.services.session import choose_body_action_no_repeat
-        
+
         today_seed = f"{user.telegram_id}_{date.today().isoformat()}"
         random.seed(today_seed)
-        
+
         # Get last action from FSM if available (future enhancement)
         # For now, just use the helper without last_action
         return choose_body_action_no_repeat()

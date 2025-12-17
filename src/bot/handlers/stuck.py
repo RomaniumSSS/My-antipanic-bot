@@ -315,12 +315,11 @@ async def microhit_feedback(
     blocker = callback_data.blocker
 
     if action == MicrohitFeedbackAction.do:
+        # AICODE-NOTE: Removed duplicate menu message (UX fix 17.12.2025)
         await msg.edit_text(
             "🔥 Отлично! Действуй. Напиши, если нужна будет ещё подсказка.\n\n"
-            "Когда сделаешь — отмечай в /status или жми Утро"
-        )
-        await msg.answer(
-            "Главное меню:", reply_markup=main_menu_keyboard()
+            "Когда сделаешь — отмечай в /status или жми Утро",
+            reply_markup=main_menu_keyboard()
         )
         return
 

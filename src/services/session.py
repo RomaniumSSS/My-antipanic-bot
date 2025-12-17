@@ -143,6 +143,15 @@ async def log_antipanic_action(
         },
     )
 
+    # AICODE-NOTE: Critical fix (17.12.2025) - filter out old steps from previous days
+    # Only keep steps scheduled for today to prevent list accumulation
+    if daily_log.assigned_step_ids:
+        steps_today = await Step.filter(
+            id__in=daily_log.assigned_step_ids,
+            scheduled_date=today
+        ).values_list('id', flat=True)
+        daily_log.assigned_step_ids = list(steps_today)
+
     assigned = set(daily_log.assigned_step_ids or [])
     if step.id not in assigned:
         assigned.add(step.id)
@@ -193,25 +202,25 @@ async def _create_step(
 def choose_body_action_no_repeat(last_action: str | None = None) -> str:
     """
     Choose a body action, avoiding repetition of the last one.
-    
+
     Args:
         last_action: Previously chosen action to avoid
-        
+
     Returns:
         Random body action (different from last_action if possible)
-    
+
     AICODE-NOTE: Anti-repeat logic (UX fix 17.12.2025)
     """
     if not last_action or len(BODY_ACTIONS) <= 1:
         return random.choice(BODY_ACTIONS)
-    
+
     # Filter out the last action
     available = [action for action in BODY_ACTIONS if action != last_action]
-    
+
     if not available:
         # Fallback if somehow all filtered out
         return random.choice(BODY_ACTIONS)
-    
+
     return random.choice(available)
 
 
@@ -220,7 +229,7 @@ async def get_body_micro_action(user: User, last_action: str | None = None) -> s
 
     AICODE-NOTE: Seed теперь включает дату, чтобы каждый день
     пользователь получал разные body actions, а не одно и то же.
-    
+
     Args:
         user: User instance
         last_action: Previously chosen action to avoid repetition

@@ -87,7 +87,7 @@ class CompleteDailyReflectionUseCase:
         # AICODE-NOTE: Critical fix (17.12.2025) - only show steps scheduled for today
         if daily_log.assigned_step_ids:
             steps = await Step.filter(
-                id__in=daily_log.assigned_step_ids, 
+                id__in=daily_log.assigned_step_ids,
                 scheduled_date=today
             )
         else:

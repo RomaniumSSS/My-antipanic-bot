@@ -106,7 +106,7 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
         return
 
     await state.clear()
-    
+
     # AICODE-NOTE: Welcome message для новых пользователей (UX fix 17.12.2025)
     # Объясняем, что это за бот и как им пользоваться
     await message.answer(
@@ -124,7 +124,7 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
         "Поехали! 🔥",
         reply_markup=main_menu_keyboard(),
     )
-    
+
     await state.set_state(OnboardingStates.waiting_for_goal)
     await message.answer(
         "*Какую цель хочешь достичь?*\n\n"

@@ -58,8 +58,13 @@ async def cmd_evening(message: Message, state: FSMContext) -> None:
     today = date.today()
 
     try:
+        # AICODE-NOTE: Debug logging for evening crash investigation (17.12.2025)
+        logger.info(f"Evening flow started for user {user.telegram_id}, today={today}")
+
         # Use use-case to get daily summary
         summary = await complete_daily_reflection_use_case.get_daily_summary(user, today)
+
+        logger.info(f"Evening summary result: success={summary.success}, steps_count={len(summary.steps or [])}")
 
         if not summary.success:
             await state.clear()
@@ -102,8 +107,13 @@ async def finish_day(message: Message, user: User, state: FSMContext) -> None:
     today = date.today()
 
     try:
+        # AICODE-NOTE: Debug logging for finish_day (17.12.2025)
+        logger.info(f"Finishing day for user {user.telegram_id}, today={today}")
+
         # Use use-case to complete day
         result = await complete_daily_reflection_use_case.complete_day(user, today)
+
+        logger.info(f"Day completion result: success={result.success}")
 
         if not result.success:
             await state.clear()
