@@ -111,7 +111,8 @@ async def step_done(
     assigned_ids = daily_log.assigned_step_ids if daily_log else []
 
     if assigned_ids:
-        steps = await Step.filter(id__in=assigned_ids)
+        # AICODE-NOTE: Фильтруем только шаги за сегодня (Bug fix 17.12.2025)
+        steps = await Step.filter(id__in=assigned_ids, scheduled_date=today)
         steps_text = "\n".join(
             f"{'✅' if s.status == 'completed' else '⬜'} {escape_markdown(s.title)}" for s in steps
         )
@@ -349,7 +350,8 @@ async def process_skip_reason(message: Message, state: FSMContext) -> None:
     assigned_ids = daily_log.assigned_step_ids if daily_log else []
 
     if assigned_ids:
-        steps = await Step.filter(id__in=assigned_ids)
+        # AICODE-NOTE: Фильтруем только шаги за сегодня (Bug fix 17.12.2025)
+        steps = await Step.filter(id__in=assigned_ids, scheduled_date=today)
 
         def step_icon(status: str) -> str:
             if status == "completed":

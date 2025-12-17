@@ -431,6 +431,10 @@ async def on_resume_goal(
     goal.status = "active"
     await goal.save()
 
+    # AICODE-NOTE: Обновляем FSM state с активной целью (Bug fix 17.12.2025)
+    # Чтобы /stuck и /morning видели правильную цель
+    await state.update_data(goal_id=goal.id)
+
     await msg.edit_text(
         f"▶️ Цель *{escape_markdown(goal.title)}* возобновлена!\n\nЖми *Утро* — спланируем день.",
     )

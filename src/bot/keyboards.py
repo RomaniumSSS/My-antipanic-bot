@@ -236,7 +236,7 @@ def main_menu_keyboard() -> ReplyKeyboardMarkup:
         keyboard=[
             [KeyboardButton(text="Утро"), KeyboardButton(text="Застрял")],
             [KeyboardButton(text="Вечер"), KeyboardButton(text="Статус")],
-            [KeyboardButton(text="Цели")],
+            [KeyboardButton(text="Цели"), KeyboardButton(text="📱 Приложение")],
         ],
         resize_keyboard=True,
         input_field_placeholder="Утро — план дня, Застрял — быстрая помощь",

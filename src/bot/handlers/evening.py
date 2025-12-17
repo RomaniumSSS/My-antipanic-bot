@@ -43,38 +43,52 @@ async def cmd_evening(message: Message, state: FSMContext) -> None:
     Uses CompleteDailyReflectionUseCase.get_daily_summary() to get steps and stats.
     """
     if not message.from_user:
+        logger.warning("evening: message.from_user is None")
         return
 
     user = await User.get_or_none(telegram_id=message.from_user.id)
     if not user:
-        await message.answer("Сначала напиши /start")
-        return
-
-    today = date.today()
-
-    # Use use-case to get daily summary
-    summary = await complete_daily_reflection_use_case.get_daily_summary(user, today)
-
-    if not summary.success:
         await state.clear()
         await message.answer(
-            summary.error_message,
+            "Сначала напиши /start",
             reply_markup=main_menu_keyboard(),
         )
         return
 
-    # Show summary with pending steps keyboard if any
-    if summary.has_pending:
+    today = date.today()
+
+    try:
+        # Use use-case to get daily summary
+        summary = await complete_daily_reflection_use_case.get_daily_summary(user, today)
+
+        if not summary.success:
+            await state.clear()
+            await message.answer(
+                summary.error_message,
+                reply_markup=main_menu_keyboard(),
+            )
+            return
+
+        # Show summary with pending steps keyboard if any
+        if summary.has_pending and summary.pending_step_ids:
+            await message.answer(
+                f"🌙 *Вечерний итог*\n\n"
+                f"*Шаги дня:*\n{summary.steps_text}\n\n"
+                f"Есть неотмеченные шаги. Отметь их или нажми кнопку ниже для завершения:",
+                reply_markup=steps_list_keyboard(summary.pending_step_ids),
+                parse_mode="Markdown",
+            )
+            await state.set_state(EveningStates.marking_done)
+        else:
+            # All steps marked → complete day
+            await finish_day(message, user, state)
+    except Exception as e:
+        logger.exception(f"Error in cmd_evening for user {user.telegram_id}: {e}")
+        await state.clear()
         await message.answer(
-            f"🌙 *Вечерний итог*\n\n"
-            f"*Шаги дня:*\n{summary.steps_text}\n"
-            f"Есть неотмеченные шаги. Отметь их или нажми кнопку ниже для завершения:",
-            reply_markup=steps_list_keyboard(summary.pending_step_ids or []),
+            "❌ Не удалось загрузить итоги дня. Попробуй позже или напиши /start",
+            reply_markup=main_menu_keyboard(),
         )
-        await state.set_state(EveningStates.marking_done)
-    else:
-        # All steps marked → complete day
-        await finish_day(message, user, state)
 
 
 async def finish_day(message: Message, user: User, state: FSMContext) -> None:
@@ -87,30 +101,39 @@ async def finish_day(message: Message, user: User, state: FSMContext) -> None:
     """
     today = date.today()
 
-    # Use use-case to complete day
-    result = await complete_daily_reflection_use_case.complete_day(user, today)
+    try:
+        # Use use-case to complete day
+        result = await complete_daily_reflection_use_case.complete_day(user, today)
 
-    if not result.success:
+        if not result.success:
+            await state.clear()
+            await message.answer(
+                f"Не получилось завершить день: {result.error_message}",
+                reply_markup=main_menu_keyboard(),
+            )
+            return
+
+        await state.clear()
+
+        # Show completion message with stats
+        # AICODE-NOTE: Позитивный feedback после дня (CLAUDE_RULES.md § 2)
+        await message.answer(
+            f"🌙 *День завершён!*\n\n"
+            f"{result.steps_text}\n\n"
+            f"📊 Выполнено: {result.completed_steps}/{result.total_steps}\n"
+            f"⭐ +{result.xp_earned} XP за день. Идёшь к цели.\n"
+            f"⭐ Всего XP: {result.total_xp}{result.streak_text}\n\n"
+            "До завтра! Напишу утром 🌅",
+            reply_markup=main_menu_keyboard(),
+            parse_mode="Markdown",
+        )
+    except Exception as e:
+        logger.exception(f"Error in finish_day for user {user.telegram_id}: {e}")
         await state.clear()
         await message.answer(
-            f"Не получилось завершить день: {result.error_message}",
+            "❌ Не удалось завершить день. Попробуй позже или напиши /start",
             reply_markup=main_menu_keyboard(),
         )
-        return
-
-    await state.clear()
-
-    # Show completion message with stats
-    # AICODE-NOTE: Позитивный feedback после дня (CLAUDE_RULES.md § 2)
-    await message.answer(
-        f"🌙 *День завершён!*\n\n"
-        f"{result.steps_text}\n"
-        f"📊 Выполнено: {result.completed_steps}/{result.total_steps}\n"
-        f"⭐ +{result.xp_earned} XP за день. Идёшь к цели.\n"
-        f"⭐ Всего XP: {result.total_xp}{result.streak_text}\n\n"
-        "До завтра! Напишу утром 🌅",
-        reply_markup=main_menu_keyboard(),
-    )
 
 
 @router.message(Command("finish_day"))
