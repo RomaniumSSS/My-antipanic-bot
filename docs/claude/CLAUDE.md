@@ -249,7 +249,7 @@ await ensure_active_stage(goal)  # Handles completion logic
 
 ## Critical Rules to Follow
 
-### aiogram 3.x Rules (docs/AIOGRAM_RULES.md)
+### aiogram 3.x Rules (docs/guides/AIOGRAM_RULES.md)
 1. **Always** use CallbackData factories, never raw strings
 2. **Always** call `callback.answer()` or use CallbackAnswerMiddleware
 3. Use Magic Filter `F` for all filtering (`F.text`, `F.from_user.id`, etc.)
@@ -257,14 +257,14 @@ await ensure_active_stage(goal)  # Handles completion logic
 5. One router per major flow
 6. No business logic in handlers - delegate to services
 
-### Tortoise ORM Rules (docs/TORTOISE_RULES.md)
+### Tortoise ORM Rules (docs/guides/TORTOISE_RULES.md)
 1. **Always** use `prefetch_related()` or `select_related()` to avoid N+1 queries
 2. **Always** await database operations
 3. Use `ForeignKeyRelation` type hints for type safety
 4. Wrap related operations in `async with in_transaction():`
 5. Use `get_or_create()` for idempotent inserts
 
-### Claude API Rules (docs/CLAUDE_RULES.md)
+### Claude API Rules (docs/guides/CLAUDE_RULES.md)
 1. **Only** use `AsyncAnthropic` client (NEVER sync!)
 2. **max_tokens** MANDATORY parameter (unlike OpenAI)
 3. API keys from config, never hardcoded
@@ -309,12 +309,12 @@ Fixtures available in `tests/conftest.py`:
 ## Documentation Requirements
 
 **When making significant changes, update:**
-- `docs/tech.md` - Architecture, data models, integrations
-- `docs/product.md` - User flows, business logic
-- `docs/AIOGRAM_RULES.md` - Bot patterns
-- `docs/TORTOISE_RULES.md` - Database patterns
-- `docs/CLAUDE_RULES.md` - AI integration patterns (Claude API)
-- `docs/AGENTS.md` - AI agent instructions
+- `docs/tech/tech.md` - Architecture, data models, integrations
+- `docs/product/product.md` - User flows, business logic
+- `docs/guides/AIOGRAM_RULES.md` - Bot patterns
+- `docs/guides/TORTOISE_RULES.md` - Database patterns
+- `docs/guides/CLAUDE_RULES.md` - AI integration patterns (Claude API)
+- `docs/guides/AGENTS.md` - AI agent instructions
 
 **Do NOT update documentation for:**
 - Simple refactors without logic changes

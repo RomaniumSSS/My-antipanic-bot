@@ -1,9 +1,5 @@
 """
 Базовые хендлеры: /start, /help, /id, /status.
-
-AICODE-NOTE: Упрощено для Этапа 1.2 TMA миграции.
-Убран импорт quiz.py (удален в Этапе 1.1).
-Теперь /start ведет напрямую в onboarding без квиза.
 """
 
 from aiogram import F, Router
@@ -66,12 +62,9 @@ async def get_or_create_user(message: Message) -> User:
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext) -> None:
     """
-    Точка входа (упрощенная для TMA миграции):
+    Точка входа:
     - С активной целью → статус + меню
-    - Без цели → прямой переход в онбординг (без квиза)
-
-    AICODE-NOTE: Убрана логика квиза и QuizResult после упрощения в Этапе 1.2.
-    Теперь новые пользователи сразу переходят к созданию цели.
+    - Без цели → прямой переход в онбординг
     """
     user = await get_or_create_user(message)
 
@@ -112,7 +105,6 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
         )
         return
 
-    # AICODE-NOTE: Новые пользователи сразу переходят к созданию цели (без квиза)
     await state.clear()
     await state.set_state(OnboardingStates.waiting_for_goal)
     await message.answer(

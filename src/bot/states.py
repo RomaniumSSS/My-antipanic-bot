@@ -6,21 +6,13 @@ FSM States для Antipanic Bot.
 - AntipanicSession: утренний ритуал (энергия → микродействия)
 - Stuck: когда застрял
 - Evening: вечерний отчёт
-
-AICODE-NOTE: Упрощено для Этапа 1.3 TMA миграции.
-Удалены неиспользуемые states: QuizStates, GoalStates.
 """
 
 from aiogram.fsm.state import State, StatesGroup
 
 
 class OnboardingStates(StatesGroup):
-    """
-    Онбординг: постановка первой цели.
-
-    AICODE-NOTE: Упрощено для Этапа 1.2 TMA миграции.
-    Убрано состояние confirming_stages - теперь цель создаётся сразу.
-    """
+    """Онбординг: постановка первой цели."""
 
     waiting_for_goal = State()  # Ожидание описания цели
     waiting_for_deadline = State()  # Ожидание дедлайна
@@ -47,12 +39,7 @@ class StuckStates(StatesGroup):
 
 
 class EveningStates(StatesGroup):
-    """
-    Вечерний отчёт (упрощённый).
-
-    AICODE-NOTE: Упрощено для Этапа 1.4 TMA миграции.
-    Удалено состояние rating_day - теперь день завершается сразу без оценки.
-    """
+    """Вечерний отчёт."""
 
     marking_done = State()  # Отметка что сделано
     waiting_for_skip_reason = State()  # Причина пропуска

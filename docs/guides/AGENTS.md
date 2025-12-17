@@ -23,7 +23,7 @@
 ## 3. Базовые принципы (Core Principles)
 1. **Documentation-First Development** — каждая сессия начинается с чтения `docs/`.
 2. **Instruction-First** — простые задачи: следуем запросу; сложные: сначала план.
-3. **Keep It Simple (MVP)** — делаем MVP, избегаем оверинжиниринга; используем стек из `docs/tech.md` (aiogram, Tortoise ORM, SQLite, Claude API, APScheduler).
+3. **Keep It Simple (MVP)** — делаем MVP, избегаем оверинжиниринга; используем стек из `docs/tech/tech.md` (aiogram, Tortoise ORM, SQLite, Claude API, APScheduler).
 4. **Одна боль → действие** — весь функционал крутится вокруг снятия паралича и запуска микрошагов.
 
 ## 4. Режим планирования (Plan Mode)
@@ -42,11 +42,11 @@
 ## 6. Технические правила (Vibe-Coding Style)
 1. Стек: Python 3.11+, aiogram 3.x, Tortoise ORM, SQLite, Claude API (Anthropic).
 2. Асинхронность: весь I/O (БД, Telegram, внешние API) — `async/await`.
-3. Структура: соблюдай дерево из `docs/tech.md`; не плодить файлы в корне, если им место в `handlers/`, `services/` и т.д.
+3. Структура: соблюдай дерево из `docs/tech/tech.md`; не плодить файлы в корне, если им место в `handlers/`, `services/` и т.д.
 4. Безопасность: токены только в `.env`; не хардкодить секреты.
 
 ### 6.1 aiogram 3.x (КРИТИЧНО)
-**Читай `docs/AIOGRAM_RULES.md` перед любой работой с ботом!**
+**Читай `docs/guides/AIOGRAM_RULES.md` перед любой работой с ботом!**
 
 Ключевые правила:
 - **CallbackData Factory** — НИКОГДА не используй raw строки для `callback_data`. Всегда `CallbackData` subclass.
@@ -56,7 +56,7 @@
 - **Роутеры** — один роутер на флоу (`start`, `morning`, `stuck`, `evening`).
 
 ### 6.2 Tortoise ORM (КРИТИЧНО)
-**Читай `docs/TORTOISE_RULES.md` перед работой с БД!**
+**Читай `docs/guides/TORTOISE_RULES.md` перед работой с БД!**
 
 Ключевые правила:
 - **prefetch_related** — всегда используй для связей, избегай N+1.
@@ -64,7 +64,7 @@
 - **Типизация** — `ForeignKeyRelation`, `ReverseRelation` для type hints.
 
 ### 6.3 Claude API (Anthropic)
-**Читай `docs/CLAUDE_RULES.md` при работе с AI.**
+**Читай `docs/guides/CLAUDE_RULES.md` при работе с AI.**
 
 Ключевые правила:
 - **AsyncAnthropic** — только async клиент. NEVER sync!

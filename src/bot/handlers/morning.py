@@ -8,7 +8,6 @@ Flow:
 4) микрошаг по задаче 2–5 мин → кнопка «Сделал»
 5) замер напряжения после → предложение углубиться 15–30 мин или завершить
 
-AICODE-NOTE: Refactored in Stage 2.2 TMA migration.
 Handler is now thin - uses AssignMorningStepsUseCase for business logic.
 """
 

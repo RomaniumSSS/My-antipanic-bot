@@ -325,6 +325,6 @@ async def choose_variant(callback: CallbackQuery, callback_data: StuckCallback):
 
 После завершения этого плана:
 - Перейти к **Приоритету 2**: Реалистичное планирование с калибровкой (см. BACKLOG.md)
-- Обновить `docs/BACKLOG.md`: переместить задачу в "✅ Завершено"
+- Обновить `docs/product/BACKLOG.md`: переместить задачу в "✅ Завершено"
 - Обновить `plans/README.md`: отметить план 004 как завершённый
 

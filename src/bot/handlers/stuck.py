@@ -8,7 +8,6 @@ Flow:
 4. Пользователь выбирает подходящий вариант
 5. Показывается выбранный вариант с кнопками "Делаю" / "Ещё варианты" / "Другое"
 
-AICODE-NOTE: Refactored in Stage 2.3 TMA migration.
 Handler is now thin - uses ResolveStuckUseCase for business logic.
 """
 

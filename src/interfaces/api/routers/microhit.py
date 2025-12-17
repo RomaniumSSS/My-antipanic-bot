@@ -4,7 +4,6 @@ MicroHit API router.
 Endpoints:
 - POST /api/microhit - Generate multiple micro-action variants for stuck state
 
-AICODE-NOTE: Updated to return multiple variants (Stage 2.3 TMA migration).
 Uses resolve_stuck_use_case for consistency with bot flow.
 """
 

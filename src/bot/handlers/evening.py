@@ -6,7 +6,6 @@ Flow (упрощённый для TMA миграции):
 2. Предложение отметить неотмеченные
 3. Обновление streak, XP → завершение
 
-AICODE-NOTE: Refactored in Stage 2.4 TMA migration.
 Handler is now thin - uses CompleteDailyReflectionUseCase for business logic.
 """
 
