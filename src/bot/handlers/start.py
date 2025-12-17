@@ -18,6 +18,7 @@ from aiogram.types import (
 
 from src.bot.keyboards import main_menu_keyboard
 from src.bot.states import OnboardingStates
+from src.bot.utils import escape_markdown
 from src.config import config
 from src.database.models import Goal, User
 
@@ -85,12 +86,12 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
         current_stage = next((s for s in stages if s.status == "active"), None)
 
         if current_stage:
-            stage_info = f"📍 _{current_stage.title}_"
+            stage_info = f"📍 _{escape_markdown(current_stage.title)}_"
         else:
             stage_info = "✅ Все этапы завершены!"
 
         await message.answer(
-            f"🎯 *{active_goal.title}*\n"
+            f"🎯 *{escape_markdown(active_goal.title)}*\n"
             f"{stage_info}\n\n"
             f"Жми *Утро* — спланируем день.\n"
             f"Застрял? Жми *Застрял* — помогу.",
@@ -169,12 +170,12 @@ async def cmd_status(message: Message) -> None:
             icon = "🔵"
         else:
             icon = "⚪"
-        stages_text += f"{icon} {i}. {stage.title} ({stage.progress}%)\n"
+        stages_text += f"{icon} {i}. {escape_markdown(stage.title)} ({stage.progress}%)\n"
 
     days_left = (active_goal.deadline - active_goal.start_date).days
 
     await message.answer(
-        f"🎯 *{active_goal.title}*\n\n"
+        f"🎯 *{escape_markdown(active_goal.title)}*\n\n"
         f"*Этапы:*\n{stages_text}\n"
         f"📅 Осталось дней: {days_left}\n"
         f"🔥 Streak: {user.streak_days} дней\n"

@@ -20,7 +20,6 @@ from aiogram.types import Message
 
 from src.bot.keyboards import main_menu_keyboard, steps_list_keyboard
 from src.bot.states import EveningStates
-from src.bot.utils import get_callback_message
 from src.core.use_cases.complete_daily_reflection import (
     complete_daily_reflection_use_case,
 )

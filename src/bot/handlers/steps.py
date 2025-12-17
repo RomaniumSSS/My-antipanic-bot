@@ -40,7 +40,7 @@ from src.bot.states import (
     OnboardingStates,
     StuckStates,
 )
-from src.bot.utils import get_callback_message
+from src.bot.utils import escape_markdown, get_callback_message
 from src.core.use_cases.complete_step import CompleteStepUseCase
 from src.core.use_cases.skip_step import SkipStepUseCase
 from src.database.models import DailyLog, Goal, Step, User
@@ -113,7 +113,7 @@ async def step_done(
     if assigned_ids:
         steps = await Step.filter(id__in=assigned_ids)
         steps_text = "\n".join(
-            f"{'✅' if s.status == 'completed' else '⬜'} {s.title}" for s in steps
+            f"{'✅' if s.status == 'completed' else '⬜'} {escape_markdown(s.title)}" for s in steps
         )
 
         all_done = all(s.status == "completed" for s in steps)
@@ -195,7 +195,7 @@ async def step_done(
                     await state.set_state(AntipanicSession.doing_micro_action)
                     await msg.answer(
                         "🔥 Тело включили, теперь микрошаг по задаче (2–5 минут):\n"
-                        f"👉 {micro_step.title}",
+                        f"👉 {escape_markdown(micro_step.title)}",
                         reply_markup=steps_list_keyboard([micro_step.id]),
                     )
                 except Exception as e:  # noqa: BLE001
@@ -277,7 +277,7 @@ async def step_skip(
                 await state.set_state(AntipanicSession.doing_micro_action)
                 await msg.edit_text(
                     "Ок, тело пропустили. Давай всё равно попробуем микрошаг по задаче:\n"
-                    f"👉 {micro_step.title}",
+                    f"👉 {escape_markdown(micro_step.title)}",
                     reply_markup=steps_list_keyboard([micro_step.id]),
                 )
             else:
@@ -303,7 +303,7 @@ async def step_skip(
     await state.set_state(EveningStates.waiting_for_skip_reason)
 
     await msg.edit_text(
-        f"Пропускаем: *{step.title}*\n\n"
+        f"Пропускаем: *{escape_markdown(step.title)}*\n\n"
         "Коротко напиши причину (или отправь `-` если не хочешь):"
     )
 
@@ -358,7 +358,7 @@ async def process_skip_reason(message: Message, state: FSMContext) -> None:
                 return "⏭"
             return "⬜"
 
-        steps_text = "\n".join(f"{step_icon(s.status)} {s.title}" for s in steps)
+        steps_text = "\n".join(f"{step_icon(s.status)} {escape_markdown(s.title)}" for s in steps)
 
         pending_ids = [s.id for s in steps if s.status == "pending"]
 
@@ -453,6 +453,6 @@ async def step_stuck(
     from src.bot.keyboards import blocker_keyboard
 
     await msg.edit_text(
-        f"🆘 Застрял на: *{step.title}*\n\nЧто мешает?",
+        f"🆘 Застрял на: *{escape_markdown(step.title)}*\n\nЧто мешает?",
         reply_markup=blocker_keyboard(),
     )

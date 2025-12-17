@@ -34,7 +34,7 @@ from src.bot.keyboards import (
     microhit_options_keyboard,
 )
 from src.bot.states import StuckStates
-from src.bot.utils import get_callback_message
+from src.bot.utils import escape_markdown, get_callback_message
 from src.core.domain.stuck_rules import get_blocker_emoji
 from src.core.use_cases.resolve_stuck import resolve_stuck_use_case
 from src.database.models import DailyLog, Goal, Step, User
@@ -123,7 +123,6 @@ async def blocker_other(
     callback: CallbackQuery, callback_data: BlockerCallback, state: FSMContext
 ) -> None:
     """Обработка других типов блокеров — сразу к вариантам микро-ударов."""
-    msg = get_callback_message(callback)
     await callback.answer()
 
     blocker_type = callback_data.type
@@ -220,11 +219,10 @@ async def generate_and_show_microhit_options(
         if blocker_type in [b.value for b in BlockerType]
         else BlockerType.unclear
     )
-    blocker_emoji = get_blocker_emoji(blocker_type)
 
     # Build message with all options listed (plan 004: подчеркиваем автономию выбора)
     options_text = "\n\n".join(
-        [f"{i}️⃣ {opt.text}" for i, opt in enumerate(options, start=1)]
+        [f"{i}️⃣ {escape_markdown(opt.text)}" for i, opt in enumerate(options, start=1)]
     )
 
     result_text = (
@@ -290,7 +288,7 @@ async def microhit_option_selected(
     # Show selected microhit with action buttons
     result_text = (
         f"{blocker_emoji} *Выбранный микро-удар:*\n\n"
-        f"{selected_text}\n\n"
+        f"{escape_markdown(selected_text)}\n\n"
         f"💡 Попробуй это прямо сейчас — всего 2-5 минут!"
     )
 

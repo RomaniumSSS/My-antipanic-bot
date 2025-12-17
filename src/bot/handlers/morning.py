@@ -34,7 +34,7 @@ from src.bot.keyboards import (
     tension_keyboard,
 )
 from src.bot.states import AntipanicSession
-from src.bot.utils import get_callback_message
+from src.bot.utils import escape_markdown, get_callback_message
 from src.core.use_cases.assign_morning_steps import assign_morning_steps_use_case
 from src.database.models import Goal, Stage, User
 from src.services.session import support_message
@@ -47,7 +47,7 @@ router = Router()
 async def _ask_tension(target: Message | CallbackQuery, state: FSMContext, goal: Goal):
     await state.set_state(AntipanicSession.rating_tension_before)
     text = (
-        f"Фокус: *{goal.title}*\n\n"
+        f"Фокус: *{escape_markdown(goal.title)}*\n\n"
         "Оцени текущее напряжение/заморозку от 0 до 10 "
         "(0 — спокойно, 10 — паника)."
     )
@@ -216,7 +216,7 @@ async def handle_tension_before(
     await state.set_state(AntipanicSession.doing_body_action)
 
     await msg.edit_text(
-        f"🤸 Разморозка на 2 минуты для цели *{goal.title}*.\n\n"
+        f"🤸 Разморозка на 2 минуты для цели *{escape_markdown(goal.title)}*.\n\n"
         f"👉 {body_text}\n\n"
         "Нажми «Шаг 1» когда сделаешь или «🆘» если нужен обходной путь.",
         reply_markup=steps_list_keyboard([body_step.id]),
@@ -293,7 +293,7 @@ async def handle_deepen_choice(
     await state.clear()
     await msg.edit_text(
         "🚀 Поехали чуть глубже (до 30 минут).\n\n"
-        f"👉 {deep_step.title}\n\n"
+        f"👉 {escape_markdown(deep_step.title)}\n\n"
         "Отметь, когда сделаешь — или напиши /evening позже для итогов.",
         reply_markup=steps_list_keyboard([deep_step.id]),
     )

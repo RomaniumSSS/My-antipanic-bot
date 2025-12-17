@@ -31,7 +31,7 @@ from src.bot.keyboards import (
     stages_manage_keyboard,
 )
 from src.bot.states import GoalManageStates
-from src.bot.utils import get_callback_message
+from src.bot.utils import escape_markdown, get_callback_message
 from src.database.models import Goal, Stage, User
 
 logger = logging.getLogger(__name__)
@@ -80,7 +80,7 @@ async def cmd_goals(message: Message, state: FSMContext) -> None:
             else "просрочено"
         )
 
-        text += f"{status_icon} *{goal.title}*\n"
+        text += f"{status_icon} *{escape_markdown(goal.title)}*\n"
         text += f"   📅 {deadline_text} ({days_left} дн.)\n\n"
 
     text += "Выбери цель для управления:"
@@ -93,7 +93,7 @@ async def cmd_goals(message: Message, state: FSMContext) -> None:
     builder = InlineKeyboardBuilder()
     for goal in goals:
         builder.button(
-            text=f"{goal.title[:30]}",
+            text=f"{escape_markdown(goal.title)[:30]}",
             callback_data=GoalSelectCallback(goal_id=goal.id),
         )
     builder.adjust(1)
@@ -116,7 +116,7 @@ async def on_goal_select(
     stages = await goal.stages.all().order_by("order")
 
     # Формируем текст
-    text = f"🎯 *{goal.title}*\n\n"
+    text = f"🎯 *{escape_markdown(goal.title)}*\n\n"
     text += f"📅 Дедлайн: {goal.deadline.strftime('%d.%m.%Y')}\n"
     text += f"📊 Статус: {goal.status}\n\n"
 
@@ -130,7 +130,7 @@ async def on_goal_select(
                 if stage.status == "active"
                 else "⚪"
             )
-            text += f"{icon} {i}. {stage.title} ({stage.progress}%)\n"
+            text += f"{icon} {i}. {escape_markdown(stage.title)} ({stage.progress}%)\n"
     else:
         text += "_Нет этапов_\n"
 
@@ -160,7 +160,7 @@ async def on_edit_stages(
     stages = await goal.stages.all().order_by("order")
 
     text = "✏️ *Редактирование этапов*\n\n"
-    text += f"Цель: _{goal.title}_\n\n"
+    text += f"Цель: _{escape_markdown(goal.title)}_\n\n"
 
     if stages:
         text += "Выбери этап для редактирования или добавь новый:"
@@ -194,7 +194,7 @@ async def on_edit_stage_name(
     await state.set_state(GoalManageStates.editing_stage_name)
 
     await msg.edit_text(
-        f"Текущее название: *{stage.title}*\n\n"
+        f"Текущее название: *{escape_markdown(stage.title)}*\n\n"
         "Введи новое название этапа (или /cancel для отмены):"
     )
     await callback.answer()
@@ -223,24 +223,24 @@ async def process_stage_name(message: Message, state: FSMContext) -> None:
         await stage.save()
 
     await message.answer(
-        f"✅ Название изменено:\nБыло: _{old_title}_\nСтало: *{stage.title}*",
+        f"✅ Название изменено:\nБыло: _{escape_markdown(old_title)}_\nСтало: *{escape_markdown(stage.title)}*",
     )
 
     # Возвращаемся к списку этапов
     if not goal_id:
         await message.answer("Цель не найдена.")
         return
-    
+
     goal = await Goal.get_or_none(id=goal_id).prefetch_related("stages")
     if not goal:
         await message.answer("Цель не найдена.")
         return
-    
+
     stages = await goal.stages.all().order_by("order")
 
     await state.set_state(GoalManageStates.editing_stages)
     await message.answer(
-        f"Этапы цели _{goal.title}_:",
+        f"Этапы цели _{escape_markdown(goal.title)}_:",
         reply_markup=stages_manage_keyboard(stages, goal_id),
     )
 
@@ -270,7 +270,7 @@ async def process_new_stage(message: Message, state: FSMContext) -> None:
 
     data = await state.get_data()
     goal_id = data.get("current_goal_id")
-    
+
     if not goal_id:
         await message.answer("Цель не найдена.")
         return
@@ -295,18 +295,18 @@ async def process_new_stage(message: Message, state: FSMContext) -> None:
         progress=0,
     )
 
-    await message.answer(f"✅ Этап *{new_stage.title}* добавлен!")
+    await message.answer(f"✅ Этап *{escape_markdown(new_stage.title)}* добавлен!")
 
     # Обновляем список этапов (перезагружаем goal с prefetch)
     goal = await Goal.get_or_none(id=goal_id).prefetch_related("stages")
     if not goal:
         await message.answer("Цель не найдена.")
         return
-    
+
     stages = await goal.stages.all().order_by("order")
     await state.set_state(GoalManageStates.editing_stages)
     await message.answer(
-        f"Этапы цели _{goal.title}_:",
+        f"Этапы цели _{escape_markdown(goal.title)}_:",
         reply_markup=stages_manage_keyboard(stages, goal_id),
     )
 
@@ -329,7 +329,7 @@ async def on_delete_stage(
 
     if stages_count == 1:
         await msg.edit_text(
-            f"⚠️ *{stage.title}* — последний этап цели.\n\n"
+            f"⚠️ *{escape_markdown(stage.title)}* — последний этап цели.\n\n"
             "Удалить его нельзя. Если хочешь удалить цель целиком, "
             "вернись назад и выбери 'Удалить цель'."
         )
@@ -343,7 +343,7 @@ async def on_delete_stage(
 
     await msg.edit_text(
         f"🗑 *Удалить этап?*\n\n"
-        f"Этап: _{stage.title}_\n"
+        f"Этап: _{escape_markdown(stage.title)}_\n"
         f"Прогресс: {stage.progress}%\n\n"
         "⚠️ Это действие нельзя отменить.",
         reply_markup=confirm_delete_keyboard(callback_data.goal_id, stage.id),
@@ -363,7 +363,7 @@ async def confirm_delete_stage(
     data = await state.get_data()
     stage_id = data.get("current_stage_id")
     goal_id = data.get("current_goal_id")
-    
+
     if not goal_id:
         await msg.edit_text("Цель не найдена.")
         return
@@ -376,19 +376,19 @@ async def confirm_delete_stage(
     title = stage.title
     await stage.delete()
 
-    await msg.edit_text(f"✅ Этап _{title}_ удалён.")
+    await msg.edit_text(f"✅ Этап _{escape_markdown(title)}_ удалён.")
 
     # Возвращаемся к списку этапов
     goal = await Goal.get_or_none(id=goal_id).prefetch_related("stages")
     if not goal:
         await callback.answer("Цель не найдена")
         return
-    
+
     stages = await goal.stages.all().order_by("order")
 
     await state.set_state(GoalManageStates.editing_stages)
     await msg.answer(
-        f"Этапы цели _{goal.title}_:",
+        f"Этапы цели _{escape_markdown(goal.title)}_:",
         reply_markup=stages_manage_keyboard(stages, goal_id),
     )
     await callback.answer()
@@ -410,7 +410,7 @@ async def on_pause_goal(
     await goal.save()
 
     await msg.edit_text(
-        f"⏸ Цель *{goal.title}* приостановлена.\n\n"
+        f"⏸ Цель *{escape_markdown(goal.title)}* приостановлена.\n\n"
         "Можешь возобновить её в любое время через /goals."
     )
     await callback.answer()
@@ -432,7 +432,7 @@ async def on_resume_goal(
     await goal.save()
 
     await msg.edit_text(
-        f"▶️ Цель *{goal.title}* возобновлена!\n\nЖми *Утро* — спланируем день.",
+        f"▶️ Цель *{escape_markdown(goal.title)}* возобновлена!\n\nЖми *Утро* — спланируем день.",
     )
     await callback.answer()
 
@@ -454,7 +454,7 @@ async def on_complete_goal(
 
     await msg.edit_text(
         f"🎉 *Цель достигнута!*\n\n"
-        f"_{goal.title}_\n\n"
+        f"_{escape_markdown(goal.title)}_\n\n"
         "Поздравляю! Создавай новую цель через /start.",
     )
     await callback.answer()
@@ -480,7 +480,7 @@ async def on_delete_goal_confirm(
 
     await msg.edit_text(
         f"🗑 *Удалить цель?*\n\n"
-        f"Цель: _{goal.title}_\n\n"
+        f"Цель: _{escape_markdown(goal.title)}_\n\n"
         "⚠️ Все этапы и шаги будут удалены.\n"
         "Это действие нельзя отменить.",
         reply_markup=confirm_delete_keyboard(goal.id),
@@ -515,6 +515,6 @@ async def confirm_delete_goal(
 
     await state.clear()
     await msg.edit_text(
-        f"✅ Цель _{title}_ и все её этапы удалены.\n\nСоздай новую цель через /start.",
+        f"✅ Цель _{escape_markdown(title)}_ и все её этапы удалены.\n\nСоздай новую цель через /start.",
     )
     await callback.answer()

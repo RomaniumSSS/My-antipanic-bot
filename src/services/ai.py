@@ -10,7 +10,10 @@ import json
 import logging
 import time
 from datetime import date
-from typing import Any
+
+# AICODE-NOTE: Используем TYPE_CHECKING для избежания циклического импорта
+# (models -> ai -> models). Реальные типы передаются как параметры в runtime.
+from typing import TYPE_CHECKING, Any
 
 from anthropic import (
     APIConnectionError as AnthropicAPIConnectionError,
@@ -34,10 +37,6 @@ from tenacity import (
 )
 
 from src.config import config
-
-# AICODE-NOTE: Используем TYPE_CHECKING для избежания циклического импорта
-# (models -> ai -> models). Реальные типы передаются как параметры в runtime.
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.database.models import DailyLog, User
