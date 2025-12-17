@@ -73,58 +73,65 @@ class CompleteDailyReflectionUseCase:
         Returns:
             DailySummaryResult with steps, stats, and formatted text
         """
-        # Get daily log
-        daily_log = await DailyLog.get_or_none(user=user, date=today)
+        try:
+            # Get daily log
+            daily_log = await DailyLog.get_or_none(user=user, date=today)
 
-        if not daily_log:
-            return DailySummaryResult(
-                success=False,
-                error_message="Сегодня ещё не было старта дня. "
-                "Сначала сделай короткий утренний чек-ин через кнопку «Утро».",
-            )
+            if not daily_log:
+                return DailySummaryResult(
+                    success=False,
+                    error_message="Сегодня ещё не было старта дня. "
+                    "Сначала сделай короткий утренний чек-ин через кнопку «Утро».",
+                )
 
-        # Get steps - filter ONLY by today's date to avoid showing old steps
-        # AICODE-NOTE: Critical fix (17.12.2025) - only show steps scheduled for today
-        if daily_log.assigned_step_ids:
-            steps = await Step.filter(
-                id__in=daily_log.assigned_step_ids,
-                scheduled_date=today
-            )
-        else:
-            steps = []
+            # Get steps - filter ONLY by today's date to avoid showing old steps
+            # AICODE-NOTE: Critical fix (17.12.2025) - only show steps scheduled for today
+            if daily_log.assigned_step_ids:
+                steps = await Step.filter(
+                    id__in=daily_log.assigned_step_ids,
+                    scheduled_date=today
+                )
+            else:
+                steps = []
 
-        # Allow completing day even without steps (e.g., rest day)
-        if not steps:
+            # Allow completing day even without steps (e.g., rest day)
+            if not steps:
+                return DailySummaryResult(
+                    success=True,
+                    daily_log=daily_log,
+                    steps=[],
+                    progress={"total": 0, "completed": 0, "skipped": 0, "pending": 0, "xp_earned": 0},
+                    steps_text="_Нет шагов за сегодня_",
+                    has_pending=False,
+                    pending_step_ids=None,
+                )
+
+            # Calculate progress
+            progress = calculate_daily_progress(daily_log, steps)
+
+            # Format steps summary
+            steps_text = format_steps_summary(steps)
+
+            # Check for pending steps
+            pending_steps = [s for s in steps if s.status == "pending"]
+            has_pending = len(pending_steps) > 0
+            pending_step_ids = [s.id for s in pending_steps] if has_pending else None
+
             return DailySummaryResult(
                 success=True,
                 daily_log=daily_log,
-                steps=[],
-                progress={"total": 0, "completed": 0, "skipped": 0, "pending": 0, "xp_earned": 0},
-                steps_text="_Нет шагов за сегодня_",
-                has_pending=False,
-                pending_step_ids=None,
+                steps=steps,
+                progress=progress,
+                steps_text=steps_text,
+                has_pending=has_pending,
+                pending_step_ids=pending_step_ids,
             )
-
-        # Calculate progress
-        progress = calculate_daily_progress(daily_log, steps)
-
-        # Format steps summary
-        steps_text = format_steps_summary(steps)
-
-        # Check for pending steps
-        pending_steps = [s for s in steps if s.status == "pending"]
-        has_pending = len(pending_steps) > 0
-        pending_step_ids = [s.id for s in pending_steps] if has_pending else None
-
-        return DailySummaryResult(
-            success=True,
-            daily_log=daily_log,
-            steps=steps,
-            progress=progress,
-            steps_text=steps_text,
-            has_pending=has_pending,
-            pending_step_ids=pending_step_ids,
-        )
+        except Exception as e:
+            logger.exception(f"Error in get_daily_summary for user {user.telegram_id}: {e}")
+            return DailySummaryResult(
+                success=False,
+                error_message=f"Не удалось загрузить итоги дня: {str(e)[:100]}",
+            )
 
     async def complete_day(self, user: User, today: date) -> DayCompletionResult:
         """

@@ -173,18 +173,27 @@ async def handle_tension_before(
     msg = get_callback_message(callback)
     await callback.answer()
     if not callback.from_user:
+        logger.warning("handle_tension_before: callback.from_user is None")
         return
 
     user = await User.get_or_none(telegram_id=callback.from_user.id)
     if not user:
+        logger.warning(f"handle_tension_before: user not found for {callback.from_user.id}")
         await state.clear()
         await msg.edit_text("Сначала напиши /start.")
         return
 
     data = await state.get_data()
     goal_id = data.get("goal_id")
+    if not goal_id:
+        logger.error(f"handle_tension_before: goal_id not found in FSM state for user {user.telegram_id}")
+        await state.clear()
+        await msg.edit_text("Цель не найдена. Напиши /start заново.")
+        return
+
     goal = await Goal.get_or_none(id=goal_id, user=user)
     if not goal:
+        logger.error(f"handle_tension_before: goal {goal_id} not found for user {user.telegram_id}")
         await state.clear()
         await msg.edit_text("Цель не найдена. Напиши /start.")
         return
@@ -192,12 +201,23 @@ async def handle_tension_before(
     tension = callback_data.value
     await state.update_data(tension_before=tension)
 
+    logger.info(f"Creating body step for user {user.telegram_id}, goal {goal_id}, tension {tension}")
+
     # Use use-case to create body step
-    result = await assign_morning_steps_use_case.create_body_step(
-        user=user, goal=goal, tension=tension
-    )
+    try:
+        result = await assign_morning_steps_use_case.create_body_step(
+            user=user, goal=goal, tension=tension
+        )
+    except Exception as e:
+        logger.exception(f"Error creating body step for user {user.telegram_id}: {e}")
+        await state.clear()
+        await msg.edit_text(
+            f"Произошла ошибка при создании шага. Попробуй ещё раз или напиши /start",
+        )
+        return
 
     if not result.success:
+        logger.error(f"Failed to create body step: {result.error_message}")
         await state.clear()
         await msg.edit_text(
             f"Не получилось создать шаг: {result.error_message}",
@@ -208,17 +228,22 @@ async def handle_tension_before(
     body_text = result.action_text
 
     if not body_step:
-        await msg.edit_text("Не удалось создать шаг.")
+        logger.error("Body step is None after successful result")
+        await state.clear()
+        await msg.edit_text("Не удалось создать шаг. Попробуй ещё раз.")
         return
 
     await state.update_data(body_step_id=body_step.id)
     await state.set_state(AntipanicSession.doing_body_action)
+
+    logger.info(f"Body step {body_step.id} created successfully for user {user.telegram_id}")
 
     await msg.edit_text(
         f"🤸 Разморозка на 2 минуты для цели *{escape_markdown(goal.title)}*.\n\n"
         f"👉 {body_text}\n\n"
         "Нажми «Шаг 1» когда сделаешь или «🆘» если нужен обходной путь.",
         reply_markup=steps_list_keyboard([body_step.id]),
+        parse_mode="Markdown",
     )
 
 

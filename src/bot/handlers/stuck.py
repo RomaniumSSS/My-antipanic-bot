@@ -92,6 +92,7 @@ async def cmd_stuck(message: Message, state: FSMContext) -> None:
     await message.answer(
         "🆘 *Что мешает двигаться?*",
         reply_markup=blocker_keyboard(),
+        parse_mode="Markdown",
     )
 
 
@@ -113,7 +114,8 @@ async def blocker_unclear(callback: CallbackQuery, state: FSMContext) -> None:
     await msg.edit_text(
         f"Понял, не знаешь с чего начать *{step_title}*.\n\n"
         "Расскажи подробнее — что именно непонятно?\n"
-        "Или напиши `-` если не хочешь уточнять."
+        "Или напиши `-` если не хочешь уточнять.",
+        parse_mode="Markdown",
     )
 
 
@@ -245,9 +247,9 @@ async def generate_and_show_microhit_options(
     options_markup = microhit_options_keyboard(options, blocker_key, step_id)
 
     if hasattr(wait_msg, "edit_text"):
-        await wait_msg.edit_text(result_text, reply_markup=options_markup)
+        await wait_msg.edit_text(result_text, reply_markup=options_markup, parse_mode="Markdown")
     else:
-        await message_or_callback_msg.answer(result_text, reply_markup=options_markup)
+        await message_or_callback_msg.answer(result_text, reply_markup=options_markup, parse_mode="Markdown")
 
     logger.info(
         f"Generated {len(options)} microhit options for step='{step_title}' blocker='{blocker_type}'"
@@ -294,7 +296,7 @@ async def microhit_option_selected(
 
     feedback_markup = microhit_feedback_keyboard(step_id, blocker)
 
-    await msg.edit_text(result_text, reply_markup=feedback_markup)
+    await msg.edit_text(result_text, reply_markup=feedback_markup, parse_mode="Markdown")
     await state.clear()
 
     logger.info(f"User selected microhit option {index} for blocker='{blocker.value}'")

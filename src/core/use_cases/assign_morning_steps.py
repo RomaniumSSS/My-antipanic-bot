@@ -190,6 +190,9 @@ class AssignMorningStepsUseCase:
         Uses user's telegram_id + date as seed so actions vary each day
         but remain consistent within same day.
 
+        AICODE-NOTE: Bug fix (17.12.2025) - Get last body action from today's steps
+        to avoid repetition of same action (e.g. "Выпей стакан воды").
+
         Args:
             user: User instance
 
@@ -202,9 +205,24 @@ class AssignMorningStepsUseCase:
         today_seed = f"{user.telegram_id}_{date.today().isoformat()}"
         random.seed(today_seed)
 
-        # Get last action from FSM if available (future enhancement)
-        # For now, just use the helper without last_action
-        return choose_body_action_no_repeat()
+        # Get last body action from today's steps to avoid repetition
+        last_action = None
+        try:
+            # Get today's last body step (easy difficulty, short duration)
+            today = date.today()
+            last_body_step = await Step.filter(
+                stage__goal__user=user,
+                scheduled_date=today,
+                difficulty="easy",
+                estimated_minutes__lte=3
+            ).order_by("-id").first()
+
+            if last_body_step:
+                last_action = last_body_step.title
+        except Exception as e:
+            logger.warning(f"Failed to get last body action for user {user.telegram_id}: {e}")
+
+        return choose_body_action_no_repeat(last_action)
 
     async def create_body_step(
         self, user: User, goal: Goal, tension: int | None

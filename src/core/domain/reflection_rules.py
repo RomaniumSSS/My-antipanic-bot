@@ -47,6 +47,9 @@ def format_steps_summary(steps: list[Step]) -> str:
     """
     Форматировать список шагов с эмодзи-отметками.
 
+    AICODE-NOTE: Bug fix (17.12.2025) - Escape markdown characters in step titles
+    to prevent Telegram parse errors when displaying with parse_mode="Markdown".
+
     Args:
         steps: Список шагов дня
 
@@ -56,6 +59,9 @@ def format_steps_summary(steps: list[Step]) -> str:
         ⏭ Task 2
         ⬜ Task 3
     """
+    # Import here to avoid circular imports
+    from src.bot.utils import escape_markdown
+
     lines = []
     for step in steps:
         if step.status == "completed":
@@ -64,7 +70,8 @@ def format_steps_summary(steps: list[Step]) -> str:
             icon = "⏭"
         else:
             icon = "⬜"
-        lines.append(f"{icon} {step.title}")
+        # AICODE-NOTE: Escape markdown to prevent parse errors
+        lines.append(f"{icon} {escape_markdown(step.title)}")
 
     return "\n".join(lines)
 
