@@ -146,11 +146,13 @@ async def log_antipanic_action(
     # AICODE-NOTE: Critical fix (17.12.2025) - filter out old steps from previous days
     # Only keep steps scheduled for today to prevent list accumulation
     if daily_log.assigned_step_ids:
+        from typing import cast
+
         steps_today = await Step.filter(
             id__in=daily_log.assigned_step_ids,
             scheduled_date=today
         ).values_list('id', flat=True)
-        daily_log.assigned_step_ids = list(steps_today)
+        daily_log.assigned_step_ids = cast(list[int], list(steps_today))
 
     assigned = set(daily_log.assigned_step_ids or [])
     if step.id not in assigned:

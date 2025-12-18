@@ -30,11 +30,11 @@ class DummyMessage:
         self.chat = type("Chat", (), {"id": getattr(from_user, "id", None)})()
         self.sent: list[dict] = []
 
-    async def answer(self, text: str, reply_markup=None):
+    async def answer(self, text: str, reply_markup=None, **kwargs):
         self.sent.append({"text": text, "markup": reply_markup, "method": "answer"})
         return self
 
-    async def edit_text(self, text: str, reply_markup=None):
+    async def edit_text(self, text: str, reply_markup=None, **kwargs):
         self.sent.append({"text": text, "markup": reply_markup, "method": "edit_text"})
         return self
 

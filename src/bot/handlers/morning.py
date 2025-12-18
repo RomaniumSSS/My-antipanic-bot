@@ -229,10 +229,7 @@ async def handle_tension_before(
     limit_check = await rate_limiter.check_morning_limit(user)
     if not limit_check.allowed:
         await state.clear()
-        await msg.edit_text(
-            limit_check.message,
-            reply_markup=main_menu_keyboard(),
-        )
+        await msg.edit_text(limit_check.message)
         return
 
     logger.info(f"Creating body step for user {user.telegram_id}, goal {goal_id}, tension {tension}")
@@ -246,7 +243,7 @@ async def handle_tension_before(
         logger.exception(f"Error creating body step for user {user.telegram_id}: {e}")
         await state.clear()
         await msg.edit_text(
-            f"Произошла ошибка при создании шага. Попробуй ещё раз или напиши /start",
+            "Произошла ошибка при создании шага. Попробуй ещё раз или напиши /start",
         )
         return
 

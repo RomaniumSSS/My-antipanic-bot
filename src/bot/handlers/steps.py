@@ -521,6 +521,5 @@ async def handle_day_rating(
 
     await msg.edit_text(
         f"{emoji} Спасибо за оценку!\n\n"
-        "День завершён. До завтра! 🌅",
-        reply_markup=main_menu_keyboard(),
+        "День завершён. До завтра! 🌅"
     )
