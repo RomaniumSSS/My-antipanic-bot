@@ -34,8 +34,6 @@ CREATE TABLE IF NOT EXISTS "daily_logs" (
     "skip_reasons" JSONB NOT NULL,
     "day_rating" VARCHAR(20),
     "xp_earned" INT NOT NULL DEFAULT 0,
-    "morning_calls_count" INT NOT NULL DEFAULT 0,
-    "stuck_calls_count" INT NOT NULL DEFAULT 0,
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "user_id" INT NOT NULL REFERENCES "users" ("id") ON DELETE CASCADE,
     CONSTRAINT "uid_daily_logs_user_id_4614a1" UNIQUE ("user_id", "date")
