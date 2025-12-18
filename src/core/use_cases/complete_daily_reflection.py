@@ -167,6 +167,12 @@ class CompleteDailyReflectionUseCase:
         user.streak_last_date = today
         await user.save()
 
+        # AICODE-NOTE: Mark day as completed to prevent re-running morning flow (18.12.2025)
+        # Set day_rating to "completed" to signal that day is finished
+        if summary.daily_log:
+            summary.daily_log.day_rating = "completed"
+            await summary.daily_log.save()
+
         # Format streak text
         streak_text = format_streak_text(new_streak)
 

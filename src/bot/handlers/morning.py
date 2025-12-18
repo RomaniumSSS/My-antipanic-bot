@@ -109,10 +109,16 @@ async def cmd_morning(message: Message, state: FSMContext) -> None:
         await message.answer("Сначала напиши /start чтобы создать цель.")
         return
 
-    # AICODE-NOTE: Bug fix (17.12.2025) - Prevent calling Утро after day is completed
-    # Check if user already completed today (has rating)
-    from src.database.models import DailyLog
-    today_log = await DailyLog.get_or_none(user=user, date=date.today())
+    # AICODE-NOTE: Bug fix (18.12.2025) - Smart morning flow control
+    # 1. Block if day is completed (/evening called)
+    # 2. Show pending steps if any exist
+    # 3. Allow new session if all steps completed (for multiple goals or more steps)
+    # 4. Soft limit: max 9 steps/day (anti-paralysis: don't overload)
+    from src.database.models import DailyLog, Step
+    today = date.today()
+    today_log = await DailyLog.get_or_none(user=user, date=today)
+    
+    # 1. Day completed - block until tomorrow
     if today_log and today_log.day_rating:
         await message.answer(
             "🌙 Ты уже завершил день и оценил его!\n\n"
@@ -120,6 +126,45 @@ async def cmd_morning(message: Message, state: FSMContext) -> None:
             reply_markup=main_menu_keyboard(),
         )
         return
+    
+    # 2. Check existing steps
+    MAX_STEPS_PER_DAY = 9  # Soft limit to prevent overload
+    if today_log and today_log.assigned_step_ids:
+        steps = await Step.filter(
+            id__in=today_log.assigned_step_ids,
+            scheduled_date=today
+        )
+        if steps:
+            pending_steps = [s for s in steps if s.status == "pending"]
+            completed_steps = [s for s in steps if s.status == "completed"]
+            
+            # 3. Has pending steps - show them (don't create new)
+            if pending_steps:
+                from src.bot.keyboards import steps_list_keyboard
+                steps_text = "\n".join(
+                    f"{'✅' if s.status == 'completed' else '⏳'} {s.title}"
+                    for s in steps
+                )
+                await message.answer(
+                    "☀️ У тебя уже есть шаги на сегодня:\n\n"
+                    f"{steps_text}\n\n"
+                    "Отметь выполненные или нажми 🆘 если застрял.",
+                    reply_markup=steps_list_keyboard([s.id for s in pending_steps]),
+                )
+                return
+            
+            # 4. All completed - check limit before allowing new session
+            if len(steps) >= MAX_STEPS_PER_DAY:
+                await message.answer(
+                    f"🔥 Ого, {len(steps)} шагов за день!\n\n"
+                    "Ты уже сделал много. Пора отдохнуть 💚\n\n"
+                    "Закрепи результат через /evening или отдыхай до завтра.",
+                    reply_markup=main_menu_keyboard(),
+                )
+                return
+            
+            # 5. All completed and under limit - allow new session
+            # (Will proceed to goal selection below)
 
     stored = await state.get_data()
     onboarding_sprint = stored.get("onboarding_sprint")
