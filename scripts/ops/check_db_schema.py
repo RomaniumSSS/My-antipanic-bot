@@ -32,20 +32,6 @@ async def check_table_exists(model, table_name: str) -> tuple[bool, str]:
         return False, f"❌ Table '{table_name}' error: {e}"
 
 
-async def check_daily_log_columns() -> tuple[bool, str]:
-    """Проверяет критичные колонки DailyLog (morning_calls_count, stuck_calls_count)."""
-    try:
-        # Пытаемся сделать запрос с явным выбором этих колонок
-        result = await DailyLog.all().limit(1).values(
-            "id",
-            "morning_calls_count",
-            "stuck_calls_count",
-        )
-        return True, "✅ Rate limit columns (morning_calls_count, stuck_calls_count) exist"
-    except Exception as e:
-        return False, f"❌ Rate limit columns error: {e}"
-
-
 async def check_user_reminder_columns() -> tuple[bool, str]:
     """Проверяет колонки для напоминаний в User."""
     try:
@@ -121,7 +107,6 @@ async def main():
         ("Stages table", check_table_exists(Stage, "stages")),
         ("Steps table", check_table_exists(Step, "steps")),
         ("DailyLogs table", check_table_exists(DailyLog, "daily_logs")),
-        ("DailyLog rate limit columns", check_daily_log_columns()),
         ("User reminder columns", check_user_reminder_columns()),
         ("Model relationships", check_relationships()),
     ]

@@ -35,44 +35,6 @@ async def test_all_models_have_tables(db):
 
 
 @pytest.mark.asyncio
-async def test_daily_log_rate_limit_columns_exist(db):
-    """
-    Проверяем, что колонки morning_calls_count и stuck_calls_count существуют в DailyLog.
-    
-    AICODE-NOTE: Регрессионный тест для проблемы с отсутствующими колонками
-    (OperationalError: column "morning_calls_count" does not exist).
-    """
-    # Создаём тестового пользователя
-    user = await User.create(
-        telegram_id=123456789,
-        username="test_user",
-        first_name="Test",
-    )
-    
-    # Создаём DailyLog с rate limit полями
-    from datetime import date
-    
-    daily_log = await DailyLog.create(
-        user=user,
-        date=date.today(),
-        morning_calls_count=3,
-        stuck_calls_count=5,
-    )
-    
-    # Проверяем, что можем прочитать эти поля
-    fetched_log = await DailyLog.get(id=daily_log.id)
-    assert fetched_log.morning_calls_count == 3
-    assert fetched_log.stuck_calls_count == 5
-    
-    # Проверяем, что можем обновить эти поля
-    fetched_log.morning_calls_count += 1
-    await fetched_log.save()
-    
-    reloaded = await DailyLog.get(id=daily_log.id)
-    assert reloaded.morning_calls_count == 4
-
-
-@pytest.mark.asyncio
 async def test_daily_log_all_fields_accessible(db):
     """Проверяем, что все поля DailyLog доступны для чтения/записи."""
     from datetime import date
@@ -94,8 +56,6 @@ async def test_daily_log_all_fields_accessible(db):
         skip_reasons={"2": "не было времени"},
         day_rating="5",
         xp_earned=50,
-        morning_calls_count=2,
-        stuck_calls_count=1,
     )
     
     # Проверяем, что можем прочитать все поля
@@ -107,30 +67,6 @@ async def test_daily_log_all_fields_accessible(db):
     assert fetched.skip_reasons == {"2": "не было времени"}
     assert fetched.day_rating == "5"
     assert fetched.xp_earned == 50
-    assert fetched.morning_calls_count == 2
-    assert fetched.stuck_calls_count == 1
-
-
-@pytest.mark.asyncio
-async def test_daily_log_rate_limit_defaults(db):
-    """Проверяем, что rate limit поля имеют правильные значения по умолчанию."""
-    from datetime import date
-    
-    user = await User.create(
-        telegram_id=111222333,
-        username="test_user3",
-        first_name="Test3",
-    )
-    
-    # Создаём DailyLog без указания rate limit полей
-    daily_log = await DailyLog.create(
-        user=user,
-        date=date.today(),
-    )
-    
-    # Проверяем, что значения по умолчанию = 0
-    assert daily_log.morning_calls_count == 0
-    assert daily_log.stuck_calls_count == 0
 
 
 @pytest.mark.asyncio
@@ -235,13 +171,11 @@ async def test_daily_log_get_or_none_works(db):
     await DailyLog.create(
         user=user,
         date=today,
-        morning_calls_count=1,
     )
     
     # Второй вызов — должен вернуть объект
     daily_log = await DailyLog.get_or_none(user=user, date=today)
     assert daily_log is not None
-    assert daily_log.morning_calls_count == 1
 
 
 @pytest.mark.asyncio

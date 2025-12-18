@@ -164,10 +164,6 @@ class DailyLog(models.Model):
     # XP заработанный за день
     xp_earned = fields.IntField(default=0)
 
-    # Rate limiting для AI вызовов (Plan 005)
-    morning_calls_count = fields.IntField(default=0)  # Вызовы /morning за день
-    stuck_calls_count = fields.IntField(default=0)  # Вызовы /stuck за день
-
     created_at = fields.DatetimeField(auto_now_add=True)
 
     class Meta:

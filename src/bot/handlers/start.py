@@ -144,56 +144,11 @@ async def cmd_help(message: Message) -> None:
         "/stuck — помощь при ступоре\n"
         "/status — прогресс\n"
         "/evening — итоги дня\n"
-        "/limits — использование AI за день\n"
         "/app — открыть приложение\n"
         "/start — новая цель"
     )
 
 
-@router.message(Command("limits"))
-async def cmd_limits(message: Message) -> None:
-    """
-    Показать использование AI за день (Plan 005).
-
-    Лимиты:
-    - Morning: 5 вызовов в день
-    - Stuck: 10 вызовов в день
-    """
-    if not message.from_user:
-        return
-
-    user = await User.get_or_none(telegram_id=message.from_user.id)
-    if not user:
-        await message.answer("Сначала напиши /start чтобы создать цель.")
-        return
-
-    from src.services.rate_limiter import rate_limiter
-
-    stats = await rate_limiter.get_usage_stats(user)
-
-    morning_used = stats["morning_used"]
-    morning_max = stats["morning_max"]
-    stuck_used = stats["stuck_used"]
-    stuck_max = stats["stuck_max"]
-
-    # Calculate remaining
-    morning_left = morning_max - morning_used
-    stuck_left = stuck_max - stuck_used
-
-    # Status icons
-    morning_status = "✅" if morning_used < morning_max else "🚫"
-    stuck_status = "✅" if stuck_used < stuck_max else "🚫"
-
-    await message.answer(
-        "🤖 *Использование AI сегодня:*\n\n"
-        f"Morning: {morning_used}/{morning_max} {morning_status}\n"
-        f"Stuck: {stuck_used}/{stuck_max} {stuck_status}\n\n"
-        f"*Осталось:*\n"
-        f"• {morning_left} morning flow\n"
-        f"• {stuck_left} stuck помощи\n\n"
-        "💡 Лимиты обновляются каждый день.",
-        parse_mode="Markdown",
-    )
 
 
 @router.message(Command("id"))

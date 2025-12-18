@@ -195,9 +195,6 @@ async def step_done(
                         tension=data.get("tension_before"),
                         max_minutes=5,
                     )
-                    # AICODE-NOTE: Increment morning AI calls counter (Plan 005)
-                    from src.services.rate_limiter import rate_limiter
-                    await rate_limiter.increment_morning_calls(user)
 
                     await state.update_data(micro_step_id=micro_step.id)
                     await state.set_state(AntipanicSession.doing_micro_action)
@@ -283,9 +280,6 @@ async def step_skip(
                     tension=data.get("tension_before"),
                     max_minutes=5,
                 )
-                # AICODE-NOTE: Increment morning AI calls counter (Plan 005)
-                from src.services.rate_limiter import rate_limiter
-                await rate_limiter.increment_morning_calls(user)
 
                 await state.update_data(micro_step_id=micro_step.id)
                 await state.set_state(AntipanicSession.doing_micro_action)

@@ -223,15 +223,6 @@ async def handle_tension_before(
     tension = callback_data.value
     await state.update_data(tension_before=tension)
 
-    # AICODE-NOTE: Check rate limit for morning AI calls (Plan 005)
-    from src.services.rate_limiter import rate_limiter
-
-    limit_check = await rate_limiter.check_morning_limit(user)
-    if not limit_check.allowed:
-        await state.clear()
-        await msg.edit_text(limit_check.message)
-        return
-
     logger.info(f"Creating body step for user {user.telegram_id}, goal {goal_id}, tension {tension}")
 
     # Use use-case to create body step
@@ -341,12 +332,6 @@ async def handle_deepen_choice(
     result = await assign_morning_steps_use_case.create_task_micro_step(
         user=user, goal=goal, tension=tension_after, max_minutes=30
     )
-
-    # AICODE-NOTE: Increment morning AI calls counter for deepening step (Plan 005)
-    # NOTE: Инкремент идёт только если создание успешно
-    if result.success:
-        from src.services.rate_limiter import rate_limiter
-        await rate_limiter.increment_morning_calls(user)
 
     if not result.success:
         logger.error(f"Failed to create deepening step: {result.error_message}")

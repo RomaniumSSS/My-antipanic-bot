@@ -194,16 +194,6 @@ async def generate_and_show_microhit_options(
 
         daily_log = await daily_log_repo.get_or_create_daily_log(user, date.today())
 
-    # AICODE-NOTE: Check rate limit for stuck AI calls (Plan 005)
-    if user:
-        from src.services.rate_limiter import rate_limiter
-
-        limit_check = await rate_limiter.check_stuck_limit(user)
-        if not limit_check.allowed:
-            await state.clear()
-            await message_or_callback_msg.answer(limit_check.message)
-            return
-
     # Show loading indicator
     if can_edit:
         wait_msg = await message_or_callback_msg.edit_text(
@@ -222,11 +212,6 @@ async def generate_and_show_microhit_options(
         user=user,
         daily_log=daily_log,
     )
-
-    # AICODE-NOTE: Increment stuck AI calls counter if successful (Plan 005)
-    if result.success and user:
-        from src.services.rate_limiter import rate_limiter
-        await rate_limiter.increment_stuck_calls(user)
 
     if not result.success:
         await state.clear()
