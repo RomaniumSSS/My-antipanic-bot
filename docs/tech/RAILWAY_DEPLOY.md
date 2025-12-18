@@ -47,6 +47,7 @@ curl https://api.telegram.org/bot<TOKEN>/getWebhookInfo
 - **DB errors**: Check `DATABASE_URL` in variables
 - **Webhook not working**: Verify `WEBHOOK_URL` and `ENVIRONMENT=production`
 - **Migrations**: `railway run aerich upgrade`
+- **"Old format of migration file"**: Duplicate or invalid migration file. Run `aerich fix-migrations` locally, verify `migrations/models/` has no duplicates, commit and push.
 
 ## Deploy
 
