@@ -38,9 +38,22 @@ if config.TMA_URL:
     cors_origins.append(tma_url)
     logger.info(f"Added TMA URL to CORS origins: {tma_url}")
 
+# AICODE-NOTE: Allow all Vercel preview deployments (for testing branches)
+# This enables testing from any Vercel deployment URL
+import re
+
+def cors_origin_regex(origin: str) -> bool:
+    """Allow localhost and any Vercel deployment."""
+    allowed_patterns = [
+        r"^https?://localhost:\d+$",
+        r"^https?://127\.0\.0\.1:\d+$",
+        r"^https://.*\.vercel\.app$",  # All Vercel deployments
+    ]
+    return any(re.match(pattern, origin) for pattern in allowed_patterns)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
+    allow_origin_regex=r"^https://.*\.vercel\.app$|^https?://localhost:\d+$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
