@@ -265,3 +265,4 @@ async def test_daily_log_unique_constraint(db):
     with pytest.raises(IntegrityError):
         await DailyLog.create(user=user, date=today)
 
+
