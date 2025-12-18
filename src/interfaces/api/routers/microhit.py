@@ -5,7 +5,10 @@ Endpoints:
 - POST /api/microhit - Generate multiple micro-action variants for stuck state
 
 Uses resolve_stuck_use_case for consistency with bot flow.
+Plan 004: Passes user/daily_log for adaptive tone.
 """
+
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -18,6 +21,7 @@ from src.interfaces.api.schemas import (
     MicroHitVariant,
     StepResponse,
 )
+from src.storage import daily_log_repo
 
 router = APIRouter(prefix="/api", tags=["microhit"])
 
@@ -62,11 +66,16 @@ async def create_microhit(
             detail="Step does not belong to user",
         )
 
-    # Generate multiple microhit variants using use-case
+    # Get daily_log for adaptive tone (plan 004)
+    daily_log = await daily_log_repo.get_or_create_daily_log(user, date.today())
+
+    # Generate multiple microhit variants using use-case (with adaptive tone)
     result = await resolve_stuck_use_case.generate_microhit_options(
         step_title=step.title,
         blocker_type=request.blocker_type,
         details=request.blocker_text or "",
+        user=user,
+        daily_log=daily_log,
     )
 
     if not result.success:

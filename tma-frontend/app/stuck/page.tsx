@@ -116,7 +116,27 @@ export default function StuckPage() {
   // Handle variant selection (user picks one)
   const handleVariantSelect = (variant: MicroHitVariant) => {
     hapticFeedback('success');
+    // Trigger confetti animation
+    triggerConfetti();
     setFlowState('done');
+  };
+
+  // Simple confetti animation without external library
+  const triggerConfetti = () => {
+    const confettiCount = 50;
+    const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8'];
+
+    for (let i = 0; i < confettiCount; i++) {
+      const confetti = document.createElement('div');
+      confetti.className = 'confetti-piece';
+      confetti.style.left = Math.random() * 100 + '%';
+      confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+      confetti.style.animationDelay = Math.random() * 0.3 + 's';
+      confetti.style.animationDuration = Math.random() * 2 + 2 + 's';
+      document.body.appendChild(confetti);
+
+      setTimeout(() => confetti.remove(), 4000);
+    }
   };
 
   // Demo mode
