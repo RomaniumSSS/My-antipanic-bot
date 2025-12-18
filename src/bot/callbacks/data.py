@@ -88,6 +88,7 @@ class PaywallAction(str, Enum):
 class GoalManageAction(str, Enum):
     """Действия управления целями."""
 
+    create = "create"  # Создать новую цель
     edit_stages = "edit_stages"  # Редактировать этапы
     delete = "delete"  # Удалить цель
     complete = "complete"  # Завершить цель

@@ -18,3 +18,16 @@ async def db() -> None:
     await Tortoise.generate_schemas()
     yield
     await Tortoise.close_connections()
+
+
+@pytest_asyncio.fixture
+async def user(db):
+    """Create a test user."""
+    from src.database.models import User
+    
+    user = await User.create(
+        telegram_id=123456789,
+        username="test_user",
+        first_name="Test",
+    )
+    return user

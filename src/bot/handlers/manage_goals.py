@@ -83,12 +83,19 @@ async def cmd_goals(message: Message, state: FSMContext) -> None:
         text += f"{status_icon} *{escape_markdown(goal.title)}*\n"
         text += f"   📅 {deadline_text} ({days_left} дн.)\n\n"
 
-    text += "Выбери цель для управления:"
+    # Проверяем лимит целей (макс 2 активные/paused цели)
+    active_goals = [g for g in goals if g.status in ("active", "paused")]
+    can_add_goal = len(active_goals) < 2
+
+    if can_add_goal:
+        text += "\n\n*Выбери цель для управления или создай новую:*"
+    else:
+        text += "\n\n*Выбери цель для управления:*"
 
     # Показываем inline кнопки для каждой цели
     from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-    from src.bot.callbacks.data import GoalSelectCallback
+    from src.bot.callbacks.data import GoalManageAction, GoalManageCallback, GoalSelectCallback
 
     builder = InlineKeyboardBuilder()
     for goal in goals:
@@ -96,9 +103,67 @@ async def cmd_goals(message: Message, state: FSMContext) -> None:
             text=f"{escape_markdown(goal.title)[:30]}",
             callback_data=GoalSelectCallback(goal_id=goal.id),
         )
+    
+    # Добавляем кнопку "Новая цель" если не превышен лимит
+    if can_add_goal:
+        builder.button(
+            text="➕ Новая цель",
+            callback_data=GoalManageCallback(goal_id=0, action=GoalManageAction.create),
+        )
+    
     builder.adjust(1)
 
     await message.answer(text, reply_markup=builder.as_markup())
+
+
+@router.callback_query(GoalManageCallback.filter(F.action == GoalManageAction.create))
+async def on_create_goal(
+    callback: CallbackQuery, callback_data: GoalManageCallback, state: FSMContext
+) -> None:
+    """
+    Начать создание новой цели (запуск onboarding flow).
+    
+    AICODE-NOTE: Проверяем лимит целей (макс 2 активные) перед созданием.
+    """
+    msg = get_callback_message(callback)
+    
+    if not callback.from_user:
+        return
+    
+    user = await User.get_or_none(telegram_id=callback.from_user.id)
+    if not user:
+        await msg.edit_text("Пользователь не найден. Напиши /start")
+        return
+    
+    # Проверяем лимит целей (макс 2 активные/paused)
+    active_goals = await Goal.filter(
+        user=user, status__in=["active", "paused"]
+    ).count()
+    
+    if active_goals >= 2:
+        await msg.edit_text(
+            "⚠️ У тебя уже 2 активные цели (лимит).\n\n"
+            "Чтобы создать новую, нужно завершить или удалить одну из старых.\n\n"
+            "Вернись к списку целей и выбери цель для управления.",
+        )
+        await callback.answer()
+        return
+    
+    # Запускаем onboarding flow
+    from src.bot.states import OnboardingStates
+    
+    await state.clear()
+    await state.set_state(OnboardingStates.waiting_for_goal)
+    
+    await msg.edit_text(
+        "🎯 *Создание новой цели*\n\n"
+        "*Какую цель хочешь достичь?*\n\n"
+        "Например:\n"
+        "• Выучить Python\n"
+        "• Запустить блог\n"
+        "• Похудеть на 5 кг"
+    )
+    await callback.answer()
 
 
 @router.callback_query(GoalSelectCallback.filter())
