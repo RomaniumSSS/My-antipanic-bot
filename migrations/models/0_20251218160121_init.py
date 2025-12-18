@@ -6,7 +6,7 @@ RUN_IN_TRANSACTION = True
 async def upgrade(db: BaseDBAsyncClient) -> str:
     return """
         CREATE TABLE IF NOT EXISTS "users" (
-    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    "id" SERIAL NOT NULL PRIMARY KEY,
     "telegram_id" BIGINT NOT NULL UNIQUE,
     "username" VARCHAR(255),
     "first_name" VARCHAR(255),
@@ -17,40 +17,43 @@ async def upgrade(db: BaseDBAsyncClient) -> str:
     "reminder_morning" VARCHAR(5) NOT NULL DEFAULT '09:00',
     "reminder_evening" VARCHAR(5) NOT NULL DEFAULT '21:00',
     "timezone_offset" INT NOT NULL DEFAULT 3,
-    "reminders_enabled" INT NOT NULL DEFAULT 1,
-    "next_morning_reminder_at" TIMESTAMP,
-    "next_evening_reminder_at" TIMESTAMP,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-) /* Пользователь бота. */;
+    "reminders_enabled" BOOL NOT NULL DEFAULT True,
+    "next_morning_reminder_at" TIMESTAMPTZ,
+    "next_evening_reminder_at" TIMESTAMPTZ,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 CREATE INDEX IF NOT EXISTS "idx_users_telegra_ab91e9" ON "users" ("telegram_id");
+COMMENT ON TABLE "users" IS 'Пользователь бота.';
 CREATE TABLE IF NOT EXISTS "daily_logs" (
-    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    "id" SERIAL NOT NULL PRIMARY KEY,
     "date" DATE NOT NULL,
     "energy_level" INT,
     "mood_text" VARCHAR(100),
-    "assigned_step_ids" JSON NOT NULL,
-    "completed_step_ids" JSON NOT NULL,
-    "skip_reasons" JSON NOT NULL,
+    "assigned_step_ids" JSONB NOT NULL,
+    "completed_step_ids" JSONB NOT NULL,
+    "skip_reasons" JSONB NOT NULL,
     "day_rating" VARCHAR(20),
     "xp_earned" INT NOT NULL DEFAULT 0,
     "morning_calls_count" INT NOT NULL DEFAULT 0,
     "stuck_calls_count" INT NOT NULL DEFAULT 0,
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "user_id" INT NOT NULL REFERENCES "users" ("id") ON DELETE CASCADE,
     CONSTRAINT "uid_daily_logs_user_id_4614a1" UNIQUE ("user_id", "date")
-) /* Дневник дня. */;
+);
+COMMENT ON TABLE "daily_logs" IS 'Дневник дня.';
 CREATE TABLE IF NOT EXISTS "goals" (
-    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    "id" SERIAL NOT NULL PRIMARY KEY,
     "title" VARCHAR(255) NOT NULL,
     "description" TEXT,
     "start_date" DATE NOT NULL,
     "deadline" DATE NOT NULL,
     "status" VARCHAR(20) NOT NULL DEFAULT 'active',
-    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "user_id" INT NOT NULL REFERENCES "users" ("id") ON DELETE CASCADE
-) /* Цель пользователя. */;
+);
+COMMENT ON TABLE "goals" IS 'Цель пользователя.';
 CREATE TABLE IF NOT EXISTS "stages" (
-    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    "id" SERIAL NOT NULL PRIMARY KEY,
     "title" VARCHAR(255) NOT NULL,
     "order" INT NOT NULL DEFAULT 0,
     "start_date" DATE NOT NULL,
@@ -58,23 +61,25 @@ CREATE TABLE IF NOT EXISTS "stages" (
     "progress" INT NOT NULL DEFAULT 0,
     "status" VARCHAR(20) NOT NULL DEFAULT 'pending',
     "goal_id" INT NOT NULL REFERENCES "goals" ("id") ON DELETE CASCADE
-) /* Этап цели (2-4 этапа на цель). */;
+);
+COMMENT ON TABLE "stages" IS 'Этап цели (2-4 этапа на цель).';
 CREATE TABLE IF NOT EXISTS "steps" (
-    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    "id" SERIAL NOT NULL PRIMARY KEY,
     "title" VARCHAR(500) NOT NULL,
     "difficulty" VARCHAR(10) NOT NULL DEFAULT 'medium',
     "estimated_minutes" INT NOT NULL DEFAULT 15,
     "xp_reward" INT NOT NULL DEFAULT 20,
     "scheduled_date" DATE,
     "status" VARCHAR(20) NOT NULL DEFAULT 'pending',
-    "completed_at" TIMESTAMP,
+    "completed_at" TIMESTAMPTZ,
     "stage_id" INT NOT NULL REFERENCES "stages" ("id") ON DELETE CASCADE
-) /* Конкретный шаг\/задача. */;
+);
+COMMENT ON TABLE "steps" IS 'Конкретный шаг/задача.';
 CREATE TABLE IF NOT EXISTS "aerich" (
-    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    "id" SERIAL NOT NULL PRIMARY KEY,
     "version" VARCHAR(255) NOT NULL,
     "app" VARCHAR(100) NOT NULL,
-    "content" JSON NOT NULL
+    "content" JSONB NOT NULL
 );"""
 
 
