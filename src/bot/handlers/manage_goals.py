@@ -107,13 +107,13 @@ async def on_goal_select(
 ) -> None:
     """Показать детали конкретной цели."""
     msg = get_callback_message(callback)
-    goal = await Goal.get_or_none(id=callback_data.goal_id).prefetch_related("stages")
+    goal = await Goal.get_or_none(id=callback_data.goal_id)
 
     if not goal:
         await msg.edit_text("Цель не найдена.")
         return
 
-    stages = await goal.stages.all().order_by("order")
+    stages = await Stage.filter(goal=goal).order_by("order").all()
 
     # Формируем текст
     text = f"🎯 *{escape_markdown(goal.title)}*\n\n"
@@ -151,13 +151,13 @@ async def on_edit_stages(
 ) -> None:
     """Показать список этапов для редактирования."""
     msg = get_callback_message(callback)
-    goal = await Goal.get_or_none(id=callback_data.goal_id).prefetch_related("stages")
+    goal = await Goal.get_or_none(id=callback_data.goal_id)
 
     if not goal:
         await msg.edit_text("Цель не найдена.")
         return
 
-    stages = await goal.stages.all().order_by("order")
+    stages = await Stage.filter(goal=goal).order_by("order").all()
 
     text = "✏️ *Редактирование этапов*\n\n"
     text += f"Цель: _{escape_markdown(goal.title)}_\n\n"
@@ -231,12 +231,12 @@ async def process_stage_name(message: Message, state: FSMContext) -> None:
         await message.answer("Цель не найдена.")
         return
 
-    goal = await Goal.get_or_none(id=goal_id).prefetch_related("stages")
+    goal = await Goal.get_or_none(id=goal_id)
     if not goal:
         await message.answer("Цель не найдена.")
         return
 
-    stages = await goal.stages.all().order_by("order")
+    stages = await Stage.filter(goal=goal).order_by("order").all()
 
     await state.set_state(GoalManageStates.editing_stages)
     await message.answer(
@@ -275,13 +275,13 @@ async def process_new_stage(message: Message, state: FSMContext) -> None:
         await message.answer("Цель не найдена.")
         return
 
-    goal = await Goal.get_or_none(id=goal_id).prefetch_related("stages")
+    goal = await Goal.get_or_none(id=goal_id)
     if not goal:
         await message.answer("Цель не найдена.")
         return
 
     # Определяем order для нового этапа
-    stages = await goal.stages.all().order_by("order")
+    stages = await Stage.filter(goal=goal).order_by("order").all()
     max_order = max([s.order for s in stages]) if stages else 0
 
     # Создаём новый этап
@@ -297,13 +297,13 @@ async def process_new_stage(message: Message, state: FSMContext) -> None:
 
     await message.answer(f"✅ Этап *{escape_markdown(new_stage.title)}* добавлен!")
 
-    # Обновляем список этапов (перезагружаем goal с prefetch)
-    goal = await Goal.get_or_none(id=goal_id).prefetch_related("stages")
+    # Обновляем список этапов
+    goal = await Goal.get_or_none(id=goal_id)
     if not goal:
         await message.answer("Цель не найдена.")
         return
 
-    stages = await goal.stages.all().order_by("order")
+    stages = await Stage.filter(goal=goal).order_by("order").all()
     await state.set_state(GoalManageStates.editing_stages)
     await message.answer(
         f"Этапы цели _{escape_markdown(goal.title)}_:",
@@ -379,12 +379,12 @@ async def confirm_delete_stage(
     await msg.edit_text(f"✅ Этап _{escape_markdown(title)}_ удалён.")
 
     # Возвращаемся к списку этапов
-    goal = await Goal.get_or_none(id=goal_id).prefetch_related("stages")
+    goal = await Goal.get_or_none(id=goal_id)
     if not goal:
         await callback.answer("Цель не найдена")
         return
 
-    stages = await goal.stages.all().order_by("order")
+    stages = await Stage.filter(goal=goal).order_by("order").all()
 
     await state.set_state(GoalManageStates.editing_stages)
     await msg.answer(
@@ -501,7 +501,7 @@ async def confirm_delete_goal(
 ) -> None:
     """Выполнить удаление цели."""
     msg = get_callback_message(callback)
-    goal = await Goal.get_or_none(id=callback_data.goal_id).prefetch_related("stages")
+    goal = await Goal.get_or_none(id=callback_data.goal_id)
 
     if not goal:
         await msg.edit_text("Цель не найдена.")

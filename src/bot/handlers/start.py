@@ -69,13 +69,13 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
     user = await get_or_create_user(message)
 
     # Проверяем активную цель
-    active_goal = (
-        await Goal.filter(user=user, status="active").prefetch_related("stages").first()
-    )
+    active_goal = await Goal.filter(user=user, status="active").first()
 
     if active_goal:
-        # Есть активная цель — показываем статус
-        stages = await active_goal.stages.all().order_by("order")
+        # Есть активную цель — показываем статус
+        from src.database.models import Stage
+
+        stages = await Stage.filter(goal=active_goal).order_by("order").all()
         current_stage = next((s for s in stages if s.status == "active"), None)
 
         if current_stage:
@@ -207,9 +207,7 @@ async def cmd_id(message: Message) -> None:
 async def cmd_status(message: Message) -> None:
     """Показать текущий прогресс по цели."""
     user = await get_or_create_user(message)
-    active_goal = (
-        await Goal.filter(user=user, status="active").prefetch_related("stages").first()
-    )
+    active_goal = await Goal.filter(user=user, status="active").first()
 
     if not active_goal:
         await message.answer(
@@ -218,7 +216,9 @@ async def cmd_status(message: Message) -> None:
         )
         return
 
-    stages = await active_goal.stages.all().order_by("order")
+    from src.database.models import Stage
+
+    stages = await Stage.filter(goal=active_goal).order_by("order").all()
 
     # Формируем список этапов с прогрессом
     stages_text = ""
