@@ -33,7 +33,7 @@ from src.bot.keyboards import (
     tension_keyboard,
 )
 from src.bot.states import AntipanicSession
-from src.bot.utils import escape_markdown, get_callback_message
+from src.bot.utils import escape_markdown, get_callback_message, prevent_double_click
 from src.core.use_cases.assign_morning_steps import assign_morning_steps_use_case
 from src.database.models import Goal, Stage, User
 from src.services.session import support_message
@@ -155,10 +155,15 @@ async def cmd_morning(message: Message, state: FSMContext) -> None:
 
 
 @router.callback_query(AntipanicSession.selecting_topic, GoalSelectCallback.filter())
+@prevent_double_click()
 async def select_goal(
     callback: CallbackQuery, callback_data: GoalSelectCallback, state: FSMContext
 ) -> None:
-    """Выбор активной цели если их несколько."""
+    """
+    Выбор активной цели если их несколько.
+
+    AICODE-NOTE: Защита от повторных кликов (Plan 005) - предотвращает множественные выборы цели.
+    """
     msg = get_callback_message(callback)
     await callback.answer()
     if not callback.from_user:
@@ -178,10 +183,15 @@ async def select_goal(
 
 
 @router.callback_query(AntipanicSession.rating_tension_before, TensionCallback.filter())
+@prevent_double_click()
 async def handle_tension_before(
     callback: CallbackQuery, callback_data: TensionCallback, state: FSMContext
 ) -> None:
-    """После оценки напряжения → телесное действие."""
+    """
+    После оценки напряжения → телесное действие.
+
+    AICODE-NOTE: Защита от повторных кликов (Plan 005) - предотвращает создание множественных body steps.
+    """
     msg = get_callback_message(callback)
     await callback.answer()
     if not callback.from_user:
@@ -260,10 +270,15 @@ async def handle_tension_before(
 
 
 @router.callback_query(AntipanicSession.rating_tension_after, TensionCallback.filter())
+@prevent_double_click()
 async def handle_tension_after(
     callback: CallbackQuery, callback_data: TensionCallback, state: FSMContext
 ) -> None:
-    """Замер после действий → предложение углубиться или завершить."""
+    """
+    Замер после действий → предложение углубиться или завершить.
+
+    AICODE-NOTE: Защита от повторных кликов (Plan 005) - предотвращает множественные сохранения tension_after.
+    """
     msg = get_callback_message(callback)
     await callback.answer()
     data = await state.get_data()
@@ -281,10 +296,15 @@ async def handle_tension_after(
 
 
 @router.callback_query(AntipanicSession.offered_deepen, DeepenCallback.filter())
+@prevent_double_click()
 async def handle_deepen_choice(
     callback: CallbackQuery, callback_data: DeepenCallback, state: FSMContext
 ) -> None:
-    """Решение: пойти в мини-спринт или закончить сессию."""
+    """
+    Решение: пойти в мини-спринт или закончить сессию.
+
+    AICODE-NOTE: Защита от повторных кликов (Plan 005) - предотвращает создание множественных deepening steps.
+    """
     msg = get_callback_message(callback)
     await callback.answer()
     if not callback.from_user:

@@ -33,7 +33,7 @@ from src.bot.keyboards import (
     microhit_options_keyboard,
 )
 from src.bot.states import StuckStates
-from src.bot.utils import escape_markdown, get_callback_message
+from src.bot.utils import escape_markdown, get_callback_message, prevent_double_click
 from src.core.domain.stuck_rules import get_blocker_emoji
 from src.core.use_cases.resolve_stuck import resolve_stuck_use_case
 from src.database.models import DailyLog, Goal, Step, User
@@ -100,8 +100,13 @@ async def cmd_stuck(message: Message, state: FSMContext) -> None:
     StuckStates.waiting_for_blocker,
     BlockerCallback.filter(F.type == BlockerType.unclear),
 )
+@prevent_double_click()
 async def blocker_unclear(callback: CallbackQuery, state: FSMContext) -> None:
-    """Блокер "не знаю с чего начать" — запрашиваем детали."""
+    """
+    Блокер "не знаю с чего начать" — запрашиваем детали.
+
+    AICODE-NOTE: Защита от повторных кликов (Plan 005) - предотвращает множественные запросы деталей.
+    """
     msg = get_callback_message(callback)
     await callback.answer()
 
@@ -120,10 +125,15 @@ async def blocker_unclear(callback: CallbackQuery, state: FSMContext) -> None:
 
 
 @router.callback_query(StuckStates.waiting_for_blocker, BlockerCallback.filter())
+@prevent_double_click()
 async def blocker_other(
     callback: CallbackQuery, callback_data: BlockerCallback, state: FSMContext
 ) -> None:
-    """Обработка других типов блокеров — сразу к вариантам микро-ударов."""
+    """
+    Обработка других типов блокеров — сразу к вариантам микро-ударов.
+
+    AICODE-NOTE: Защита от повторных кликов (Plan 005) - предотвращает множественные AI вызовы для микро-ударов.
+    """
     msg = get_callback_message(callback)
     await callback.answer()
 
@@ -257,6 +267,7 @@ async def generate_and_show_microhit_options(
 
 
 @router.callback_query(MicrohitOptionCallback.filter())
+@prevent_double_click()
 async def microhit_option_selected(
     callback: CallbackQuery, callback_data: MicrohitOptionCallback, state: FSMContext
 ) -> None:
@@ -264,6 +275,8 @@ async def microhit_option_selected(
     Handler for microhit option selection (Stage 2.3).
 
     User clicked one of the option buttons → show that option with action buttons.
+
+    AICODE-NOTE: Защита от повторных кликов (Plan 005) - предотвращает множественные выборы варианта.
     """
     msg = get_callback_message(callback)
     await callback.answer()
@@ -303,10 +316,15 @@ async def microhit_option_selected(
 
 
 @router.callback_query(MicrohitFeedbackCallback.filter())
+@prevent_double_click()
 async def microhit_feedback(
     callback: CallbackQuery, callback_data: MicrohitFeedbackCallback, state: FSMContext
 ) -> None:
-    """Обработка реакции на микро-удар."""
+    """
+    Обработка реакции на микро-удар.
+
+    AICODE-NOTE: Защита от повторных кликов (Plan 005) - предотвращает множественные обработки feedback.
+    """
     msg = get_callback_message(callback)
     await callback.answer()
     if not callback.message or isinstance(callback.message, InaccessibleMessage):

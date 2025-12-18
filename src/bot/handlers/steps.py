@@ -41,7 +41,7 @@ from src.bot.states import (
     OnboardingStates,
     StuckStates,
 )
-from src.bot.utils import escape_markdown, get_callback_message
+from src.bot.utils import escape_markdown, get_callback_message, prevent_double_click
 from src.core.use_cases.complete_step import CompleteStepUseCase
 from src.core.use_cases.skip_step import SkipStepUseCase
 from src.database.models import DailyLog, Goal, Step, User
@@ -71,6 +71,7 @@ router = Router()
 
 
 @router.callback_query(StepCallback.filter(F.action == StepAction.done))
+@prevent_double_click()
 async def step_done(
     callback: CallbackQuery, callback_data: StepCallback, state: FSMContext
 ) -> None:
@@ -78,6 +79,7 @@ async def step_done(
     Отметка шага как выполненного.
 
     AICODE-NOTE: Thin handler - вызывает use-case и показывает результат.
+    AICODE-NOTE: Защита от повторных кликов (Plan 005) - предотвращает двойное начисление XP.
     """
     msg = get_callback_message(callback)
     await callback.answer("✅ Отлично!")
@@ -224,6 +226,7 @@ async def step_done(
 
 
 @router.callback_query(StepCallback.filter(F.action == StepAction.skip))
+@prevent_double_click()
 async def step_skip(
     callback: CallbackQuery, callback_data: StepCallback, state: FSMContext
 ) -> None:
@@ -231,6 +234,7 @@ async def step_skip(
     Пропуск шага — запрашиваем причину.
 
     AICODE-NOTE: Thin handler - вызывает use-case и показывает результат.
+    AICODE-NOTE: Защита от повторных кликов (Plan 005) - предотвращает дублирование skip операций.
     """
     msg = get_callback_message(callback)
     await callback.answer()
@@ -435,10 +439,15 @@ async def handle_paywall_choice(
 
 
 @router.callback_query(StepCallback.filter(F.action == StepAction.stuck))
+@prevent_double_click()
 async def step_stuck(
     callback: CallbackQuery, callback_data: StepCallback, state: FSMContext
 ) -> None:
-    """Переход в stuck flow."""
+    """
+    Переход в stuck flow.
+
+    AICODE-NOTE: Защита от повторных кликов (Plan 005) - предотвращает множественные переходы в stuck flow.
+    """
     msg = get_callback_message(callback)
     await callback.answer()
 
@@ -462,6 +471,7 @@ async def step_stuck(
 
 
 @router.callback_query(EveningStates.marking_done, RatingCallback.filter())
+@prevent_double_click()
 async def handle_day_rating(
     callback: CallbackQuery, callback_data: RatingCallback, state: FSMContext
 ) -> None:
@@ -470,6 +480,7 @@ async def handle_day_rating(
 
     AICODE-NOTE: Bug fix (17.12.2025) - добавлен недостающий handler для RatingCallback.
     Без этого handler'а emoji кнопки не работали после вечернего итога.
+    AICODE-NOTE: Защита от повторных кликов (Plan 005) - предотвращает множественные сохранения рейтинга.
     """
     msg = get_callback_message(callback)
     await callback.answer()
