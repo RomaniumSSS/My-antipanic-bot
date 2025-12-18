@@ -2,7 +2,7 @@
 Тесты для флоу создания новой цели через /goals.
 
 AICODE-NOTE: Проверяем:
-1. Кнопка "➕ Новая цель" появляется когда < 2 активных целей
+1. Кнопка "➕ Новая цель" появляется когда < 10 активных целей
 2. Callback on_create_goal правильно переключает FSM state
 3. Onboarding flow продолжается после callback
 """
@@ -24,7 +24,7 @@ from src.database.models import Goal, User
 @pytest.mark.asyncio
 async def test_goals_list_shows_create_button_when_under_limit(user: User):
     """
-    Тест: кнопка '➕ Новая цель' появляется когда < 2 активных целей.
+    Тест: кнопка '➕ Новая цель' появляется когда < 10 активных целей.
     """
     # Create 1 active goal
     await Goal.create(
@@ -72,23 +72,17 @@ async def test_goals_list_shows_create_button_when_under_limit(user: User):
 @pytest.mark.asyncio
 async def test_goals_list_hides_create_button_when_at_limit(user: User):
     """
-    Тест: кнопка '➕ Новая цель' НЕ появляется когда ≥ 2 активных целей.
+    Тест: кнопка '➕ Новая цель' НЕ появляется когда ≥ 10 активных целей.
     """
-    # Create 2 active goals (limit)
-    await Goal.create(
-        user=user,
-        title="Goal 1",
-        start_date=date.today(),
-        deadline=date.today() + timedelta(days=30),
-        status="active",
-    )
-    await Goal.create(
-        user=user,
-        title="Goal 2",
-        start_date=date.today(),
-        deadline=date.today() + timedelta(days=60),
-        status="active",
-    )
+    # Create 10 active goals (limit)
+    for i in range(1, 11):
+        await Goal.create(
+            user=user,
+            title=f"Goal {i}",
+            start_date=date.today(),
+            deadline=date.today() + timedelta(days=30 + i),
+            status="active",
+        )
 
     # Mock message
     message = MagicMock(spec=Message)
@@ -151,23 +145,17 @@ async def test_create_goal_callback_switches_to_onboarding_state(user: User):
 @pytest.mark.asyncio
 async def test_create_goal_callback_blocks_when_at_limit(user: User):
     """
-    Тест: callback on_create_goal блокирует создание при достижении лимита (2 цели).
+    Тест: callback on_create_goal блокирует создание при достижении лимита (10 целей).
     """
-    # Create 2 active goals (limit)
-    await Goal.create(
-        user=user,
-        title="Goal 1",
-        start_date=date.today(),
-        deadline=date.today() + timedelta(days=30),
-        status="active",
-    )
-    await Goal.create(
-        user=user,
-        title="Goal 2",
-        start_date=date.today(),
-        deadline=date.today() + timedelta(days=60),
-        status="active",
-    )
+    # Create 10 active goals (limit)
+    for i in range(1, 11):
+        await Goal.create(
+            user=user,
+            title=f"Goal {i}",
+            start_date=date.today(),
+            deadline=date.today() + timedelta(days=30 + i),
+            status="active",
+        )
 
     # Mock callback
     callback = MagicMock(spec=CallbackQuery)
@@ -189,7 +177,7 @@ async def test_create_goal_callback_blocks_when_at_limit(user: User):
     # Check that warning message was shown
     call_args = callback.message.edit_text.call_args
     text = call_args[0][0]
-    assert "лимит" in text.lower() or "2 активные" in text.lower()
+    assert "лимит" in text.lower() or "10 активных" in text.lower()
 
     # Check that FSM state was NOT switched
     state.set_state.assert_not_called()
