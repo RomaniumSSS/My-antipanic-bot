@@ -28,8 +28,9 @@ async def check_user(telegram_id: int):
         goals = await Goal.filter(user=user).prefetch_related("stages__steps")
         print(f"\n🎯 Goals: {len(goals)}")
         for goal in goals:
-            stages = await Stage.filter(goal=goal)
-            steps_count = sum([await Step.filter(stage=s).count() for s in stages])
+            # AICODE-NOTE: Используем prefetch_related данные вместо повторных запросов
+            stages = goal.stages
+            steps_count = sum(len(s.steps) for s in stages)
             print(f"   - {goal.title} (status={goal.status}, stages={len(stages)}, steps={steps_count})")
 
         # DailyLogs
