@@ -145,8 +145,31 @@ async def cmd_help(message: Message) -> None:
         "/status — прогресс\n"
         "/evening — итоги дня\n"
         "/app — открыть приложение\n"
+        "/cancel — отменить текущее действие\n"
         "/start — новая цель"
     )
+
+
+@router.message(Command("cancel"))
+async def cmd_cancel(message: Message, state: FSMContext) -> None:
+    """
+    Отмена текущего действия и возврат в главное меню.
+    
+    AICODE-NOTE: Добавлено по плану 005 (Phase 4) - позволяет выйти из FSM состояний.
+    """
+    current_state = await state.get_state()
+    
+    if current_state:
+        await state.clear()
+        await message.answer(
+            "❌ Отменил. Возвращайся когда будет ресурс 💚",
+            reply_markup=main_menu_keyboard(),
+        )
+    else:
+        await message.answer(
+            "Нечего отменять. Используй /help для списка команд.",
+            reply_markup=main_menu_keyboard(),
+        )
 
 
 

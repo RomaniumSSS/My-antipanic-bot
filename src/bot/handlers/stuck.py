@@ -55,6 +55,9 @@ async def cmd_stuck(message: Message, state: FSMContext) -> None:
     """
     Быстрый вход при ступоре — без привязки к конкретному шагу.
     Сразу предлагает выбрать тип блокера и получить микро-удар.
+    
+    AICODE-NOTE: Bug fix (18.12.2025) - используем goal_id из FSM state если есть
+    Чтобы работало после выбора цели через /goals.
     """
     if not message.from_user:
         return
@@ -64,7 +67,15 @@ async def cmd_stuck(message: Message, state: FSMContext) -> None:
         await message.answer("Напиши /start чтобы начать.")
         return
 
-    active_goal = await Goal.filter(user=user, status="active").first()
+    # AICODE-NOTE: Приоритет FSM state (если выбрана цель через /goals)
+    data = await state.get_data()
+    goal_id = data.get("goal_id")
+    
+    if goal_id:
+        active_goal = await Goal.get_or_none(id=goal_id, user=user, status="active")
+    else:
+        active_goal = await Goal.filter(user=user, status="active").first()
+    
     if not active_goal:
         await message.answer(
             "У тебя нет активной цели. Напиши /start",
@@ -86,6 +97,7 @@ async def cmd_stuck(message: Message, state: FSMContext) -> None:
         stuck_step_id=context_result.step_id,
         stuck_step_title=context_result.step_title,
         stuck_goal_id=active_goal.id,
+        goal_id=active_goal.id,  # Сохраняем для следующих команд
     )
     await state.set_state(StuckStates.waiting_for_blocker)
 
@@ -371,8 +383,15 @@ async def microhit_feedback(
             await msg.edit_text("Не нашёл профиль. Напиши /start.")
             return
 
-        # Get active goal for context
-        active_goal = await Goal.filter(user=user, status="active").first()
+        # AICODE-NOTE: Bug fix (18.12.2025) - используем goal_id из FSM state если есть
+        data = await state.get_data()
+        goal_id = data.get("goal_id")
+        
+        if goal_id:
+            active_goal = await Goal.get_or_none(id=goal_id, user=user, status="active")
+        else:
+            active_goal = await Goal.filter(user=user, status="active").first()
+        
         if not active_goal:
             await msg.edit_text("Не нашёл активную цель. Напиши /start.")
             return

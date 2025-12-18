@@ -170,7 +170,12 @@ async def on_create_goal(
 async def on_goal_select(
     callback: CallbackQuery, callback_data: GoalSelectCallback, state: FSMContext
 ) -> None:
-    """Показать детали конкретной цели."""
+    """
+    Показать детали конкретной цели.
+    
+    AICODE-NOTE: Обновляем FSM state при просмотре цели (Bug fix 18.12.2025)
+    Чтобы /stuck и /morning использовали выбранную цель.
+    """
     msg = get_callback_message(callback)
     goal = await Goal.get_or_none(id=callback_data.goal_id)
 
@@ -199,7 +204,9 @@ async def on_goal_select(
     else:
         text += "_Нет этапов_\n"
 
-    await state.update_data(current_goal_id=goal.id)
+    # AICODE-NOTE: Обновляем goal_id в FSM для /stuck и /morning
+    # Пользователь может выбрать цель через /goals, и дальше /stuck будет работать с ней
+    await state.update_data(current_goal_id=goal.id, goal_id=goal.id)
     await state.set_state(GoalManageStates.viewing_goal)
 
     await msg.edit_text(
