@@ -57,3 +57,5 @@ async def fallback_handler(message: Message, state: FSMContext) -> None:
             reply_markup=main_menu_keyboard(),
         )
 
+
+
